@@ -107,6 +107,6 @@ How to build and run Jasmine
 	Set the jumper J2 to normal mode position and unplug SATA cable.
 	Turn on the power to Jasmine board. Jasmine will be busy doing internal low level format.
 	When the low level format is finished, the LED at D4 position will be lit.
-	Now that Jasmine is ready to process SATA commands, you can plug SATA cable.
+	Now that Jasmine is ready to process SATA commands, you can plug SATA cable!
 
 
