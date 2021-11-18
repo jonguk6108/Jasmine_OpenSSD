@@ -290,6 +290,15 @@ void ftl_open(void)
     }
 	g_ftl_read_buf_id = 0;
 	g_ftl_write_buf_id = 0;
+	
+	for(int i = 0; i < NUM_BANKS; i++)
+	{
+		for(int j = 0; j < VBLKS_PER_BANK; j++)
+		{
+			//age data initalization to 1
+		}
+	}
+	
 
     // This example FTL can handle runtime bad block interrupts and read fail (uncorrectable bit errors) interrupts
     flash_clear_irq();
@@ -501,6 +510,12 @@ static void write_page(UINT32 const lpn, UINT32 const sect_offset, UINT32 const 
     page_num = new_vpn % PAGES_PER_BLK;
     ASSERT(get_vcount(bank,vblock) < (PAGES_PER_BLK - 1));
 
+	for(int i = 0; i < VBLKS_PER_BANK; i++)
+	{
+		//age++ for blks except vblock 
+	}
+	//vblock age = 0
+
     // write new data (make sure that the new data is ready in the write buffer frame)
     // (c.f FO_B_SATA_W flag in flash.h)
     nand_page_ptprogram_from_host(bank,
@@ -706,7 +721,7 @@ static UINT32 get_vt_vblock(UINT32 const bank)
     ASSERT(bank < NUM_BANKS);
 
     UINT32 vblock;
-
+	//need to fix here!
     // search the block which has mininum valid pages
     vblock = mem_search_min_max(VCOUNT_ADDR + (bank * VBLKS_PER_BANK * sizeof(UINT16)),
                                 sizeof(UINT16),
