@@ -1,4 +1,4 @@
-FTL	= tutorial
+FTL	= greedy
 PREFIX 	= arm-none-eabi-
 CC 	= $(PREFIX)gcc
 AS 	= $(PREFIX)as
