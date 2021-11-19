@@ -296,6 +296,7 @@ void ftl_open(void)
 		for(int j = 0; j < VBLKS_PER_BANK; j++)
 		{
 			//age data initalization to 1
+			write_dram_32(AGE_ADDR + (i*VBLKS_PER_BANK+j)*sizeof(UINT32), 1);
 		}
 	}
 	
@@ -513,8 +514,12 @@ static void write_page(UINT32 const lpn, UINT32 const sect_offset, UINT32 const 
 	for(int i = 0; i < VBLKS_PER_BANK; i++)
 	{
 		//age++ for blks except vblock 
+		if(i == vblock) continue;
+		UINT32 tmpblkage = read_dram_32(AGE_ADDR + (bank*VBLKS_PER_BANK+i)*sizeof(UINT32));
+		write_dram_32(AGE_ADDR + (bank*VBLKS_PER_BANK+i)*sizeof(UINT32), tmpblkage + 1);
 	}
-	//vblock age = 0
+	//vblock age = 1
+	write_dram_32(AGE_ADDR + (bank*VBLKS_PER_BANK+vblock)*sizeof(UINT32), 1);
 
     // write new data (make sure that the new data is ready in the write buffer frame)
     // (c.f FO_B_SATA_W flag in flash.h)
@@ -723,10 +728,21 @@ static UINT32 get_vt_vblock(UINT32 const bank)
     UINT32 vblock;
 	//need to fix here!
     // search the block which has mininum valid pages
-    vblock = mem_search_min_max(VCOUNT_ADDR + (bank * VBLKS_PER_BANK * sizeof(UINT16)),
+    /*
+	vblock = mem_search_min_max(VCOUNT_ADDR + (bank * VBLKS_PER_BANK * sizeof(UINT16)),
                                 sizeof(UINT16),
                                 VBLKS_PER_BANK,
                                 MU_CMD_SEARCH_MIN_DRAM);
+	*/
+	double max = 0;
+	for(int i = 0; i < VBLKS_PER_BANK; i++)
+	{
+		UINT16 valid_page_num = read_dram_16(VCOUNT_ADDR + (bank * VBLKS_PER_BANK + i) * sizeof(UINT16));
+		UINT32 age = read_dram_32(AGE_ADDR + (bank*VBLKS_PER_BANK+i)*sizeof(UINT32));
+		double u = valid_page_num/PAGES_PER_BLK;
+		double ratio = (1 - u) / (2*u) * age;
+		if(ratio > max) vblock = i;
+	}
 
     ASSERT(is_bad_block(bank, vblock) == FALSE);
     ASSERT(vblock >= META_BLKS_PER_BANK && vblock < VBLKS_PER_BANK);
