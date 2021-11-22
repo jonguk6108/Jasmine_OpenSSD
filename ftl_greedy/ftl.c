@@ -45,6 +45,9 @@
 typedef struct _ftl_statistics
 {
     UINT32 gc_cnt;
+	UINT32 gc_write;
+	UINT32 host_write;
+	UINT32 nand_write;
     UINT32 page_wcount; // page write count
 }ftl_statistics;
 
@@ -334,6 +337,19 @@ void ftl_read(UINT32 const lba, UINT32 const num_sectors)
     sect_offset  = lba % SECTORS_PER_PAGE;
     remain_sects = num_sectors;
 
+	if(lba == 7 && num_sectors == 7){
+		UINT32 next_read_buf_id = (g_ftl_read_buf_id+1) % NUM_RD_BUFFERS;
+		while(next_read_buf_id == GETREG(SATA_RBUF_PTR);
+		
+		flash_finish();
+		
+		SETREG(BM_STACK_RDSET, next_read_buf_id);
+		SETREG(BM_STACK_RESET, 0x02);
+		g_ftl_read_buf_id = next_read_buf_id;
+		
+		return;
+	}
+
     while (remain_sects != 0)
     {
         if ((sect_offset + remain_sects) < SECTORS_PER_PAGE)
@@ -392,6 +408,8 @@ void ftl_write(UINT32 const lba, UINT32 const num_sectors)
     lpn          = lba / SECTORS_PER_PAGE;
     sect_offset  = lba % SECTORS_PER_PAGE;
     remain_sects = num_sectors;
+
+	g_ftl_statistics[get_num_bank(lpn)].host_write++;
 
     while (remain_sects != 0)
     {
@@ -514,8 +532,6 @@ static void write_page(UINT32 const lpn, UINT32 const sect_offset, UINT32 const 
 	for(int i = 0; i < VBLKS_PER_BANK; i++)
 	{
 		//age++ for blks except vblock 
-
-        //엥 ? 지금 freeblk도 결국 aging되고 있는거 같은데?? 좀 더 생각해보자
 		if(i == vblock) continue;
 		UINT32 tmpblkage = read_dram_32(AGE_ADDR + (bank*VBLKS_PER_BANK+i)*sizeof(UINT32));
 		write_dram_32(AGE_ADDR + (bank*VBLKS_PER_BANK+i)*sizeof(UINT32), tmpblkage + 1);
@@ -530,6 +546,7 @@ static void write_page(UINT32 const lpn, UINT32 const sect_offset, UINT32 const 
                                   page_num,
                                   page_offset,
                                   column_cnt);
+	g_ftl_statistics[bank].nand_write++;
     // update metadata
     set_lpn(bank, page_num, lpn);
     set_vpn(lpn, new_vpn);
@@ -690,6 +707,7 @@ static void garbage_collection(UINT32 const bank)
                            src_page,
                            free_vpn / PAGES_PER_BLK,
                            free_vpn % PAGES_PER_BLK);
+		g_ftl_statistics[bank].gc_write++;
         ASSERT((free_vpn / PAGES_PER_BLK) == gc_vblock);
         // update metadata
         set_vpn(src_lpn, free_vpn);
