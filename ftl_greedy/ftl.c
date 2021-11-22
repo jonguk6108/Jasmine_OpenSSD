@@ -276,7 +276,7 @@ void ftl_open(void)
 	// If necessary, do low-level format
 	// format() should be called after loading scan lists, because format() calls is_bad_block().
     //----------------------------------------
-/* 	if (check_format_mark() == FALSE) */
+ 	//if (check_format_mark() == FALSE) 
 	if (TRUE)
 	{
         uart_print("do format");
@@ -514,6 +514,8 @@ static void write_page(UINT32 const lpn, UINT32 const sect_offset, UINT32 const 
 	for(int i = 0; i < VBLKS_PER_BANK; i++)
 	{
 		//age++ for blks except vblock 
+
+        //엥 ? 지금 freeblk도 결국 aging되고 있는거 같은데?? 좀 더 생각해보자
 		if(i == vblock) continue;
 		UINT32 tmpblkage = read_dram_32(AGE_ADDR + (bank*VBLKS_PER_BANK+i)*sizeof(UINT32));
 		write_dram_32(AGE_ADDR + (bank*VBLKS_PER_BANK+i)*sizeof(UINT32), tmpblkage + 1);
@@ -652,7 +654,7 @@ static void garbage_collection(UINT32 const bank)
     gc_vblock = get_gc_vblock(bank);
     free_vpn  = gc_vblock * PAGES_PER_BLK;
 
-/*     uart_printf("garbage_collection bank %d, vblock %d",bank, vt_vblock); */
+    uart_printf("garbage_collection bank %d, vblock %d",bank, vt_vblock); 
 
     ASSERT(vt_vblock != gc_vblock);
     ASSERT(vt_vblock >= META_BLKS_PER_BANK && vt_vblock < VBLKS_PER_BANK);
@@ -706,7 +708,7 @@ static void garbage_collection(UINT32 const bank)
     ASSERT((free_vpn % PAGES_PER_BLK) < (PAGES_PER_BLK - 2));
     ASSERT((free_vpn % PAGES_PER_BLK == vcount));
 
-/*     uart_printf("gc page count : %d", vcount); */
+    uart_printf("gc page count : %d", vcount); */
 
     // 4. update metadata
     set_vcount(bank, vt_vblock, VC_MAX);
@@ -714,7 +716,7 @@ static void garbage_collection(UINT32 const bank)
     set_new_write_vpn(bank, free_vpn); // set a free page for new write
     set_gc_vblock(bank, vt_vblock); // next free block (reserve for GC)
     dec_full_blk_cnt(bank); // decrease full block count
-    /* uart_print("garbage_collection end"); */
+    uart_print("garbage_collection end"); */
 }
 //-------------------------------------------------------------
 // Victim selection policy: Greedy
@@ -741,7 +743,7 @@ static UINT32 get_vt_vblock(UINT32 const bank)
 		UINT32 age = read_dram_32(AGE_ADDR + (bank*VBLKS_PER_BANK+i)*sizeof(UINT32));
 		double u = valid_page_num/PAGES_PER_BLK;
 		double ratio = (1 - u) / (2*u) * age;
-		if(ratio > max) vblock = i;
+		if(ratio > max) vblock = i;   //max = ratio 해줘야될듯?
 	}
 
     ASSERT(is_bad_block(bank, vblock) == FALSE);

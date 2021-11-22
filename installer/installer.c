@@ -621,7 +621,7 @@ static BOOL32 query_device(HANDLE handle)
 		{
 			char* product_id = (char*) (buffer + desc->ProductIdOffset);
 
-			if (memcmp(product_id, "YATAPDON", 8) == 0)
+			if (memcmp(product_id, "JMicron", 7) == 0)
 			{
 				result = OK;
 			}
@@ -641,7 +641,7 @@ static BOOL32 query_device(HANDLE handle)
 			{
 				char* vendor_id = (char*) (buffer + desc->VendorIdOffset);
 
-				if (memcmp(vendor_id, "YATAPDON", 8) == 0)
+				if (memcmp(vendor_id, "JMicron", 7) == 0)
 				{
 					result = OK;
 				}
