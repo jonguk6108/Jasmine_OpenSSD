@@ -311,6 +311,8 @@ void ftl_open(void)
 	SETREG(FCONF_PAUSE, FIRQ_DATA_CORRUPT | FIRQ_BADBLK_L | FIRQ_BADBLK_H);
 
 	enable_irq();
+
+    uart_printf("NUM_LSECTORS : %d\n", NUM_LSECTORS);
 }
 void ftl_flush(void)
 {
@@ -336,10 +338,11 @@ void ftl_read(UINT32 const lba, UINT32 const num_sectors)
     lpn          = lba / SECTORS_PER_PAGE;
     sect_offset  = lba % SECTORS_PER_PAGE;
     remain_sects = num_sectors;
+    bank = get_num_bank(lpn);
 
 	if(lba == 7 && num_sectors == 7){
 		UINT32 next_read_buf_id = (g_ftl_read_buf_id+1) % NUM_RD_BUFFERS;
-		while(next_read_buf_id == GETREG(SATA_RBUF_PTR);
+		while(next_read_buf_id == GETREG(SATA_RBUF_PTR));
 		
 		flash_finish();
 		
@@ -347,6 +350,15 @@ void ftl_read(UINT32 const lba, UINT32 const num_sectors)
 		SETREG(BM_STACK_RESET, 0x02);
 		g_ftl_read_buf_id = next_read_buf_id;
 		
+        //print stats
+        uart_printf("gc_cnt : %d\n", g_ftl_statistics[bank].gc_cnt);
+        uart_printf("gc_write : %d\n", g_ftl_statistics[bank].gc_write);
+        uart_printf("host_write : %d\n", g_ftl_statistics[bank].host_write);
+        uart_printf("nand_write : %d\n", g_ftl_statistics[bank].nand_write);
+        uart_printf("page_wcount : %d\n", g_ftl_statistics[bank].page_wcount);
+
+
+
 		return;
 	}
 
@@ -726,7 +738,7 @@ static void garbage_collection(UINT32 const bank)
     ASSERT((free_vpn % PAGES_PER_BLK) < (PAGES_PER_BLK - 2));
     ASSERT((free_vpn % PAGES_PER_BLK == vcount));
 
-    uart_printf("gc page count : %d", vcount); */
+    uart_printf("gc page count : %d", vcount); 
 
     // 4. update metadata
     set_vcount(bank, vt_vblock, VC_MAX);
@@ -734,7 +746,7 @@ static void garbage_collection(UINT32 const bank)
     set_new_write_vpn(bank, free_vpn); // set a free page for new write
     set_gc_vblock(bank, vt_vblock); // next free block (reserve for GC)
     dec_full_blk_cnt(bank); // decrease full block count
-    uart_print("garbage_collection end"); */
+    uart_print("garbage_collection end");
 }
 //-------------------------------------------------------------
 // Victim selection policy: Greedy

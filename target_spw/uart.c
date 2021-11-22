@@ -126,6 +126,22 @@ void uart_print_hex(UINT32 num)
 	uart_txbyte('\n');
 }
 #include <stdarg.h>
+
+void uart_printf(const char* msg, ...)
+{
+	char out[256];
+	va_list ap;
+	int len = 0;
+	va_start(ap, msg);
+	len = vsnprintf(out, sizeof(out) - 1, msg, ap);
+	va_end(ap);
+	if (len >= 0)
+	{
+		out[len] = '\0';
+		uart_print(out);
+	}
+}
+/*
 void uart_printf(const char * msg, ...)
 {
   fflush(stdout);
@@ -137,5 +153,6 @@ void uart_printf(const char * msg, ...)
   va_end(ap);
   out[len] = '\0';
   uart_print(out);
-}
+}*/
+
 #endif	// OPTION_UART_DEBUG
