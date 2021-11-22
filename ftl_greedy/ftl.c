@@ -312,7 +312,14 @@ void ftl_open(void)
 
 	enable_irq();
 
+    /****FTL 세팅값 ******/
     uart_printf("NUM_LSECTORS : %d\n", NUM_LSECTORS);
+    uart_printf("NUM_BANKS : %d\n", NUM_BANKS);
+    uart_printf("VBLKS_PER_BANK : %d\n", VBLKS_PER_BANK);
+    uart_printf("NUM_VBLKS : %d\n", NUM_VBLKS);
+    uart_printf("BYTES_PER_SECTOR : %d\n", BYTES_PER_SECTOR);
+   /********** **********/
+
 }
 void ftl_flush(void)
 {
@@ -771,15 +778,19 @@ static UINT32 get_vt_vblock(UINT32 const bank)
 	{
 		UINT16 valid_page_num = read_dram_16(VCOUNT_ADDR + (bank * VBLKS_PER_BANK + i) * sizeof(UINT16));
 		UINT32 age = read_dram_32(AGE_ADDR + (bank*VBLKS_PER_BANK+i)*sizeof(UINT32));
-		double u = valid_page_num/PAGES_PER_BLK;
+		double u = (double)valid_page_num/(double)PAGES_PER_BLK;
 		double ratio = (1 - u) / (2*u) * age;
-		if(ratio > max) vblock = i;   //max = ratio 해줘야될듯?
+        if (ratio > max) {
+            vblock = i;  
+            max = ratio;
+        }
 	}
 
     ASSERT(is_bad_block(bank, vblock) == FALSE);
     ASSERT(vblock >= META_BLKS_PER_BANK && vblock < VBLKS_PER_BANK);
     ASSERT(get_vcount(bank, vblock) < (PAGES_PER_BLK - 1));
 
+    write_dram_32(AGE_ADDR + (bank * VBLKS_PER_BANK + vblock) * sizeof(UINT32), 1);
     return vblock;
 }
 static void format(void)
