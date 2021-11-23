@@ -1,4 +1,4 @@
-FTL	= greedy
+FTL	= cb
 PREFIX 	= arm-none-eabi-
 CC 	= $(PREFIX)gcc
 AS 	= $(PREFIX)as

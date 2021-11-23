@@ -299,7 +299,7 @@ void ftl_open(void)
 		for(int j = 0; j < VBLKS_PER_BANK; j++)
 		{
 			//age data initalization to 1
-			write_dram_32(AGE_ADDR + (i*VBLKS_PER_BANK+j)*sizeof(UINT32), 0);
+			write_dram_32(AGE_ADDR + (i*VBLKS_PER_BANK+j)*sizeof(UINT32), 1);
 		}
 	}
 	
@@ -313,12 +313,15 @@ void ftl_open(void)
 	enable_irq();
 
     /****FTL 세팅값 ******/
-    uart_printf("NUM_LSECTORS : %d\n", NUM_LSECTORS);
-    uart_printf("NUM_BANKS : %d\n", NUM_BANKS);
-    uart_printf("VBLKS_PER_BANK : %d\n", VBLKS_PER_BANK);
-    uart_printf("NUM_VBLKS : %d\n", NUM_VBLKS);
-    uart_printf("BYTES_PER_SECTOR : %d\n", BYTES_PER_SECTOR);
-   /********** **********/
+    uart_printf("\n----------------------");
+    uart_printf("NUM_LSECTORS : %d", NUM_LSECTORS);
+    uart_printf("NUM_BANKS : %d", NUM_BANKS);
+    uart_printf("VBLKS_PER_BANK : %d", VBLKS_PER_BANK);
+    uart_printf("NUM_VBLKS : %d", NUM_VBLKS);
+    uart_printf("PAGES_PER_VBLK : %d", PAGES_PER_VBLK);
+    uart_printf("BYTES_PER_SECTOR : %d", BYTES_PER_SECTOR);
+    uart_printf("----------------------");
+    /********************/
 
 }
 void ftl_flush(void)
@@ -428,7 +431,7 @@ void ftl_write(UINT32 const lba, UINT32 const num_sectors)
     sect_offset  = lba % SECTORS_PER_PAGE;
     remain_sects = num_sectors;
 
-	g_ftl_statistics[get_num_bank(lpn)].host_write+=num_sectors;
+	g_ftl_statistics[get_num_bank(lpn)].host_write++;
 
     while (remain_sects != 0)
     {
@@ -556,7 +559,7 @@ static void write_page(UINT32 const lpn, UINT32 const sect_offset, UINT32 const 
 		write_dram_32(AGE_ADDR + (bank*VBLKS_PER_BANK+i)*sizeof(UINT32), tmpblkage + 1);
 	}
 	//vblock age = 1
-	write_dram_32(AGE_ADDR + (bank*VBLKS_PER_BANK+vblock)*sizeof(UINT32),0);
+	write_dram_32(AGE_ADDR + (bank*VBLKS_PER_BANK+vblock)*sizeof(UINT32),1);
 
     // write new data (make sure that the new data is ready in the write buffer frame)
     // (c.f FO_B_SATA_W flag in flash.h)
@@ -594,7 +597,14 @@ static UINT32 get_vcount(UINT32 const bank, UINT32 const vblock)
     ASSERT((vblock >= META_BLKS_PER_BANK) && (vblock < VBLKS_PER_BANK));
 
     vcount = read_dram_16(VCOUNT_ADDR + (((bank * VBLKS_PER_BANK) + vblock) * sizeof(UINT16)));
+    /*
+    if (!(vcount < PAGES_PER_BLK) || (vcount == VC_MAX)) {
+        uart_printf("vcount : %d", vcount);
+        while (1);
+    }*/
     ASSERT((vcount < PAGES_PER_BLK) || (vcount == VC_MAX));
+   
+    
 
     return vcount;
 }
@@ -777,21 +787,24 @@ static UINT32 get_vt_vblock(UINT32 const bank)
 	UINT32 max_denominator = 1;
 	for(int i = 0; i < VBLKS_PER_BANK; i++)
 	{
-		UINT16 valid_page_num = read_dram_16(VCOUNT_ADDR + (bank * VBLKS_PER_BANK + i) * sizeof(UINT16));
+		UINT16 valid_page_num = get_vcount(bank, i);
 		UINT32 age = read_dram_32(AGE_ADDR + (bank*VBLKS_PER_BANK+i)*sizeof(UINT32));
+        if (valid_page_num > PAGES_PER_BLK) continue;
 		UINT32 numerator = (PAGES_PER_BLK - valid_page_num)* age;
 		UINT32 denominator = 2*valid_page_num;
         if (numerator * max_denominator > max_numerator * denominator) {
             vblock = i;  
-            max = ratio;
+            max_numerator = numerator;
+            max_denominator = denominator;
         }
+  
 	}
 
     ASSERT(is_bad_block(bank, vblock) == FALSE);
     ASSERT(vblock >= META_BLKS_PER_BANK && vblock < VBLKS_PER_BANK);
     ASSERT(get_vcount(bank, vblock) < (PAGES_PER_BLK - 1));
 
-    write_dram_32(AGE_ADDR + (bank * VBLKS_PER_BANK + vblock) * sizeof(UINT32),0);
+    write_dram_32(AGE_ADDR + (bank * VBLKS_PER_BANK + vblock) * sizeof(UINT32),1);
     return vblock;
 }
 static void format(void)
