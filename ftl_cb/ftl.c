@@ -428,7 +428,7 @@ void ftl_write(UINT32 const lba, UINT32 const num_sectors)
     sect_offset  = lba % SECTORS_PER_PAGE;
     remain_sects = num_sectors;
 
-	g_ftl_statistics[get_num_bank(lpn)].host_write++;
+	g_ftl_statistics[get_num_bank(lpn)].host_write+=num_sectors;
 
     while (remain_sects != 0)
     {
@@ -556,7 +556,7 @@ static void write_page(UINT32 const lpn, UINT32 const sect_offset, UINT32 const 
 		write_dram_32(AGE_ADDR + (bank*VBLKS_PER_BANK+i)*sizeof(UINT32), tmpblkage + 1);
 	}
 	//vblock age = 1
-	write_dram_32(AGE_ADDR + (bank*VBLKS_PER_BANK+vblock)*sizeof(UINT32), 1);
+	write_dram_32(AGE_ADDR + (bank*VBLKS_PER_BANK+vblock)*sizeof(UINT32),0);
 
     // write new data (make sure that the new data is ready in the write buffer frame)
     // (c.f FO_B_SATA_W flag in flash.h)
@@ -773,14 +773,15 @@ static UINT32 get_vt_vblock(UINT32 const bank)
                                 VBLKS_PER_BANK,
                                 MU_CMD_SEARCH_MIN_DRAM);
 	*/
-	double max = 0;
+	UINT32 max_numerator = 0;
+	UINT32 max_denominator = 1;
 	for(int i = 0; i < VBLKS_PER_BANK; i++)
 	{
 		UINT16 valid_page_num = read_dram_16(VCOUNT_ADDR + (bank * VBLKS_PER_BANK + i) * sizeof(UINT16));
 		UINT32 age = read_dram_32(AGE_ADDR + (bank*VBLKS_PER_BANK+i)*sizeof(UINT32));
-		double u = (double)valid_page_num/(double)PAGES_PER_BLK;
-		double ratio = (1 - u) / (2*u) * age;
-        if (ratio > max) {
+		UINT32 numerator = (PAGES_PER_BLK - valid_page_num)* age;
+		UINT32 denominator = 2*valid_page_num;
+        if (numerator * max_denominator > max_numerator * denominator) {
             vblock = i;  
             max = ratio;
         }
@@ -790,7 +791,7 @@ static UINT32 get_vt_vblock(UINT32 const bank)
     ASSERT(vblock >= META_BLKS_PER_BANK && vblock < VBLKS_PER_BANK);
     ASSERT(get_vcount(bank, vblock) < (PAGES_PER_BLK - 1));
 
-    write_dram_32(AGE_ADDR + (bank * VBLKS_PER_BANK + vblock) * sizeof(UINT32), 1);
+    write_dram_32(AGE_ADDR + (bank * VBLKS_PER_BANK + vblock) * sizeof(UINT32),0);
     return vblock;
 }
 static void format(void)
