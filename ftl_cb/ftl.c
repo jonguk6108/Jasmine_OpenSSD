@@ -299,7 +299,7 @@ void ftl_open(void)
 		for(int j = 0; j < VBLKS_PER_BANK; j++)
 		{
 			//age data initalization to 1
-			write_dram_32(AGE_ADDR + (i*VBLKS_PER_BANK+j)*sizeof(UINT32), 1);
+			write_dram_32(AGE_ADDR + (i*VBLKS_PER_BANK+j)*sizeof(UINT32), 0);
 		}
 	}
 	
