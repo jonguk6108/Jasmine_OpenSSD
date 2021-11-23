@@ -299,7 +299,7 @@ void ftl_open(void)
 		for(int j = 0; j < VBLKS_PER_BANK; j++)
 		{
 			//age data initalization to 1
-			write_dram_32(AGE_ADDR + (i*VBLKS_PER_BANK+j)*sizeof(UINT32), 1);
+			write_dram_32(AGE_ADDR + (i*VBLKS_PER_BANK+j)*sizeof(UINT32), 0);
 		}
 	}
 	
@@ -559,7 +559,7 @@ static void write_page(UINT32 const lpn, UINT32 const sect_offset, UINT32 const 
 		write_dram_32(AGE_ADDR + (bank*VBLKS_PER_BANK+i)*sizeof(UINT32), tmpblkage + 1);
 	}
 	//vblock age = 1
-	write_dram_32(AGE_ADDR + (bank*VBLKS_PER_BANK+vblock)*sizeof(UINT32),1);
+	write_dram_32(AGE_ADDR + (bank*VBLKS_PER_BANK+vblock)*sizeof(UINT32),0);
 
     // write new data (make sure that the new data is ready in the write buffer frame)
     // (c.f FO_B_SATA_W flag in flash.h)
@@ -790,6 +790,7 @@ static UINT32 get_vt_vblock(UINT32 const bank)
 		UINT16 valid_page_num = get_vcount(bank, i);
 		UINT32 age = read_dram_32(AGE_ADDR + (bank*VBLKS_PER_BANK+i)*sizeof(UINT32));
         if (valid_page_num > PAGES_PER_BLK) continue;
+        if (age == 0) continue;
 		UINT32 numerator = (PAGES_PER_BLK - valid_page_num)* age;
 		UINT32 denominator = 2*valid_page_num;
         if (numerator * max_denominator > max_numerator * denominator) {
@@ -804,7 +805,7 @@ static UINT32 get_vt_vblock(UINT32 const bank)
     ASSERT(vblock >= META_BLKS_PER_BANK && vblock < VBLKS_PER_BANK);
     ASSERT(get_vcount(bank, vblock) < (PAGES_PER_BLK - 1));
 
-    write_dram_32(AGE_ADDR + (bank * VBLKS_PER_BANK + vblock) * sizeof(UINT32),1);
+    write_dram_32(AGE_ADDR + (bank * VBLKS_PER_BANK + vblock) * sizeof(UINT32),0);
     return vblock;
 }
 static void format(void)
