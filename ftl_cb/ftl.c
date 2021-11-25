@@ -431,7 +431,7 @@ void ftl_write(UINT32 const lba, UINT32 const num_sectors)
     sect_offset  = lba % SECTORS_PER_PAGE;
     remain_sects = num_sectors;
 
-	g_ftl_statistics[get_num_bank(lpn)].host_write++;
+	g_ftl_statistics[get_num_bank(lpn)].host_write += num_sectors;
 
     while (remain_sects != 0)
     {
@@ -782,7 +782,8 @@ static UINT32 get_vt_vblock(UINT32 const bank)
                                 sizeof(UINT16),
                                 VBLKS_PER_BANK,
                                 MU_CMD_SEARCH_MIN_DRAM);
-	*/
+	
+    */
 	UINT32 max_numerator = 0;
 	UINT32 max_denominator = 1;
 	for(int i = 0; i < VBLKS_PER_BANK; i++)
@@ -790,7 +791,6 @@ static UINT32 get_vt_vblock(UINT32 const bank)
 		UINT16 valid_page_num = get_vcount(bank, i);
 		UINT32 age = read_dram_32(AGE_ADDR + (bank*VBLKS_PER_BANK+i)*sizeof(UINT32));
         if (valid_page_num > PAGES_PER_BLK) continue;
-        if (age == 0) continue;
 		UINT32 numerator = (PAGES_PER_BLK - valid_page_num)* age;
 		UINT32 denominator = 2*valid_page_num;
         if (numerator * max_denominator > max_numerator * denominator) {
@@ -800,7 +800,7 @@ static UINT32 get_vt_vblock(UINT32 const bank)
         }
   
 	}
-
+    
     ASSERT(is_bad_block(bank, vblock) == FALSE);
     ASSERT(vblock >= META_BLKS_PER_BANK && vblock < VBLKS_PER_BANK);
     ASSERT(get_vcount(bank, vblock) < (PAGES_PER_BLK - 1));
