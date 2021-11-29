@@ -293,16 +293,6 @@ void ftl_open(void)
     }
 	g_ftl_read_buf_id = 0;
 	g_ftl_write_buf_id = 0;
-	
-	for(int i = 0; i < NUM_BANKS; i++)
-	{
-		for(int j = 0; j < VBLKS_PER_BANK; j++)
-		{
-			//age data initalization to 1
-			write_dram_32(AGE_ADDR + (i*VBLKS_PER_BANK+j)*sizeof(UINT32), 0);
-		}
-	}
-	
 
     // This example FTL can handle runtime bad block interrupts and read fail (uncorrectable bit errors) interrupts
     flash_clear_irq();
@@ -372,10 +362,6 @@ void ftl_read(UINT32 const lba, UINT32 const num_sectors)
 		return;
 	}
 
-
-    UINT32 zone_address = lba/ ZONE_SIZE;
-    if ((zone_address/DEG_ZONE) >= VBLKS_PER_BANK) return;
-
     //seq_zone
     if (lba >= 6*ZONE_SIZE) 
     {
@@ -438,30 +424,56 @@ void ftl_read(UINT32 const lba, UINT32 const num_sectors)
 
 void zns_read(UINT32 const start_lba, UINT32 const num_sectors)
 {
-    UINT i_sect = 0;
+    UINT32 cnt_for_nandread = 0;
+    UINT32 i_sect = 0;
     while (i_sect < num_sectors)
     {
-        UINT c_lba = start_lba + i_sect;
-        UINT lba = start_lba + i_sect;
-        UINT c_sect = lba % NSECT;
+        /*****************************/
+        UINT32 c_lba = start_lba + i_sect;
+        UINT32 lba = start_lba + i_sect;
+        UINT32 c_sect = lba % NSECT;
         lba = lba / NSECT;
-        UINT b_offset = lba % DEG_ZONE;
+        UINT32 b_offset = lba % DEG_ZONE;
         lba = lba / DEG_ZONE;
-        UINT p_offset = lba % NPAGE;
+        UINT32 p_offset = lba % NPAGE;
         lba = lba / NPAGE;
-        UINT c_fcg = lba % NUM_FCG;
+        UINT32 c_fcg = lba % NUM_FCG;
+        /*******************************/
 
-        UINT c_zone = lba;
-        int c_bank = c_fcg * DEG_ZONE + b_offset;
+        UINT32 c_zone = lba;
+        if (c_zone >= NZONE) return;
+        UINT32 c_bank = c_fcg * DEG_ZONE + b_offset;
 
-        //zone_state,wp,slba 읽어오기
-        UINT8 zone_state = read_dram_8(ZONE_STATE_ADDR + c_zone * sizeof(UINT8));
-        UINT32 zone_wp = read_dram_32(ZONE_WP_ADDR + c_zone * sizeof(UINT32));
-        UINT32 zone_slba = read_dram_32(ZONE_SLBA_ADDR + c_zone * sizeof(UINT32));
+        /*****zone_state,wp,slba 읽어오기*********/
+        UINT8 zone_state = get_zone_state(c_zone);
+        UINT32 zone_wp = get_zone_wp(c_zone);
+        UINT32 zone_slba = get_zone_slba(c_zone);
+        /****************************************/
 
         if (zone_state == 0)
         {
             //data[i_sect] = -1;
+
+            /*********read_commnad*********/
+            //첫 sect가 쓰이거나, 한페이지를 다 쓸경우 +1
+            if (c_sect == 0 || i_sect == 0)
+            {
+                //buf에서 한번 쓰고있으면 SATA_RBUF가 움직이면 안댐
+                //생각해보기: SATA가 움직일수 있다?
+                UINT32 next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
+                #if OPTION_FTL_TEST == 0
+                while (next_read_buf_id == GETREG(SATA_RBUF_PTR));	// wait if the read buffer is full (slow host)
+                #endif
+            }
+            mem_set_dram(RD_BUF_PTR(g_ftl_read_buf_id) + c_offset * BYTES_PER_SECTOR,
+                0xFFFFFFFF, 1 * BYTES_PER_SECTOR);
+
+            flash_finish();
+            SETREG(BM_STACK_RDSET, next_read_buf_id);	// change bm_read_limit
+            SETREG(BM_STACK_RESET, 0x02);				// change bm_read_limit
+            if (c_sect == 0 || i_sect == 0)
+                g_ftl_read_buf_id = next_read_buf_id;
+            /**********read*************/
 
             i_sect++;
             continue;
@@ -470,46 +482,142 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors)
         {
             if (zone_wp <= c_lba) 
             {
-                data[i_sect] = -1;
+                //data[i_sect] = -1;
+
+                /*********read_commnad*********/
+                if (c_sect == 0 || i_sect == 0)
+                {
+                    UINT32 next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
+                    #if OPTION_FTL_TEST == 0
+                    while (next_read_buf_id == GETREG(SATA_RBUF_PTR));	// wait if the read buffer is full (slow host)
+                    #endif
+                }
+                mem_set_dram(RD_BUF_PTR(g_ftl_read_buf_id) + c_offset * BYTES_PER_SECTOR,
+                    0xFFFFFFFF, 1 * BYTES_PER_SECTOR);
+
+                flash_finish();
+                SETREG(BM_STACK_RDSET, next_read_buf_id);	// change bm_read_limit
+                SETREG(BM_STACK_RESET, 0x02);				// change bm_read_limit
+                if (c_sect == 0 || i_sect == 0)
+                    g_ftl_read_buf_id = next_read_buf_id;
+                /**********read*************/
+
+
                 i_sect++;
                 continue;
             }
             //데이터가 버퍼에 있을때
-            if ((ZONE[c_zone][1] / NSECT) * NSECT <= c_lba && (ZONE[c_zone][1] / NSECT) * NSECT != NSECT - 1)
-                data[i_sect] = BUFFER[c_zone][c_sect];
-            else {
-                u32 r_data[NSECT];
-                u32 spare[1];
-                nand_read(c_bank, ZTF[c_zone], p_offset, r_data, spare);
-                data[i_sect] = r_data[c_sect];
+            if (((zone_wp - 1) / NSECT) * NSECT <= c_lba && ((zone_wp - 1) % NSECT) != NSECT - 1)
+            {
+
+                UINT32 data = get_buffer_sector(c_zone, c_sect);
+
+                /*********read_commnad*********/
+                if (c_sect == 0 || i_sect == 0)
+                {
+                    UINT32 next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
+                    #if OPTION_FTL_TEST == 0
+                    while (next_read_buf_id == GETREG(SATA_RBUF_PTR));	// wait if the read buffer is full (slow host)
+                    #endif
+                }
+                mem_set_dram(RD_BUF_PTR(g_ftl_read_buf_id) + c_offset * BYTES_PER_SECTOR,
+                    data, 1 * BYTES_PER_SECTOR);
+
+                flash_finish();
+                SETREG(BM_STACK_RDSET, next_read_buf_id);	// change bm_read_limit
+                SETREG(BM_STACK_RESET, 0x02);				// change bm_read_limit
+                if (c_sect == 0 || i_sect == 0)
+                    g_ftl_read_buf_id = next_read_buf_id;
+                /**********read*************/
+
+            }
+            //데이터가 버퍼에 없을때 즉, nand에서 읽어와야댐 문제점: nand_page_pthread는 sect단위가아니고 page단위로 하는 듯.
+            else 
+            {
+                /**********normal_nandread***************/
+                cnt_for_nandread++;
+                //c_sect ==0 이고, 처음 sect읽을경우 아닐때 nandread
+                if (c_sect == 0 && i_sect != 0)
+                {
+                    UINT32 vblk = get_zone_to_FBG(c_zone);
+                    nand_page_ptread_to_host(c_bank,
+                        vblk,
+                        p_offset,
+                        (c_sect - cnt_for_nandread),
+                        cnt_for_nandread);
+
+                    cnt_for_nandread = 0;
+                }
+                /*****************************************/
             }
         }
-        /*
         else if (zone_state == 3)
         {
-            int i_tl = c_lba - c_zone * DEG_ZONE * NSECT * NPAGE;
-
-            if (TL_WP[c_zone] > i_tl) 
+            UINT32 i_tl  =  c_lba - c_zone * DEG_ZONE * NSECT * NPAGE;
+            UINT32 TL_WP =  get_TL_wp(c_zone);
+            if (TL_WP > i_tl) 
             { // this data in tl zone
-                if ((TL_WP[c_zone] / NSECT) * NSECT <= i_tl && (TL_WP[c_zone] / NSECT) * NSECT != NSECT - 1) 
-                    data[i_sect] = TL_BUFFER[c_zone][c_sect];
-                else 
+                if (((TL_WP - 1) / NSECT) * NSECT <= i_tl && ((TL_WP - 1) % NSECT) != NSECT - 1)
                 {
-                    u32 r_data[NSECT];
-                    u32 spare[1];
-                    nand_read(c_bank, TL_BITMAP[c_zone][DEG_ZONE * NSECT * NPAGE], p_offset, r_data, spare);
-                    data[i_sect] = r_data[c_sect];
+                    UINT32 data = get_TL_buffer(c_zone, c_sect);
+
+                    /******************/
+                    if (c_sect == 0 || i_sect == 0)
+                    {
+                        UINT32 next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
+                        #if OPTION_FTL_TEST == 0
+                        while (next_read_buf_id == GETREG(SATA_RBUF_PTR));	// wait if the read buffer is full (slow host)
+                        #endif
+                    }
+                    mem_set_dram(RD_BUF_PTR(g_ftl_read_buf_id) + c_offset * BYTES_PER_SECTOR,
+                        data, 1 * BYTES_PER_SECTOR);
+
+                    flash_finish();
+                    SETREG(BM_STACK_RDSET, next_read_buf_id);	// change bm_read_limit
+                    SETREG(BM_STACK_RESET, 0x02);				// change bm_read_limit
+                    if (c_sect == 0 || i_sect == 0)
+                        g_ftl_read_buf_id = next_read_buf_id;
+                    /***********************/
+
+                }
+                else
+                {
+                    /**************TL_nandread*******************/
+                    cnt_for_nandread++;
+                    if (c_sect == 0 && i_sect != 0)
+                    {
+                        UINT32 vblk = get_TL_bitmap(c_zone, DEG_ZONE * NSECT * NPAGE);
+                        nand_page_ptread_to_host(c_bank,
+                            FBG,
+                            vblk,
+                            (c_sect - cnt_for_nandread),
+                            cnt_for_nandread);
+
+                        cnt_for_nandread = 0;
+                    }
+                    /*******************************************/
                 }
             }
             else 
             {
-                u32 r_data[NSECT];
-                u32 spare[1];
-                nand_read(c_bank, ZTF[c_zone], p_offset, r_data, spare);
-                data[i_sect] = r_data[c_sect];
+                /**********normal_nandread***************/
+                cnt_for_nandread++;
+                if (c_sect == 0 && i_sect != 0)
+                {
+                    UINT32 vblk = get_zone_to_FBG(c_zone);
+                    nand_page_ptread_to_host(c_bank,
+                        vblk,
+                        p_offset,
+                        (c_sect - cnt_for_nandread),
+                        cnt_for_nandread);
+
+                    cnt_for_nandread = 0;
+                }
+                /*****************************************/
             }
         }
-        */
+
+        i_sect++;
     }
     return;
 }
@@ -642,16 +750,6 @@ static void write_page(UINT32 const lpn, UINT32 const sect_offset, UINT32 const 
     vblock   = new_vpn / PAGES_PER_BLK;
     page_num = new_vpn % PAGES_PER_BLK;
     ASSERT(get_vcount(bank,vblock) < (PAGES_PER_BLK - 1));
-
-	for(int i = 0; i < VBLKS_PER_BANK; i++)
-	{
-		//age++ for blks except vblock 
-		if(i == vblock) continue;
-		UINT32 tmpblkage = read_dram_32(AGE_ADDR + (bank*VBLKS_PER_BANK+i)*sizeof(UINT32));
-		write_dram_32(AGE_ADDR + (bank*VBLKS_PER_BANK+i)*sizeof(UINT32), tmpblkage + 1);
-	}
-	//vblock age = 1
-	write_dram_32(AGE_ADDR + (bank*VBLKS_PER_BANK+vblock)*sizeof(UINT32),0);
 
     // write new data (make sure that the new data is ready in the write buffer frame)
     // (c.f FO_B_SATA_W flag in flash.h)
@@ -867,37 +965,17 @@ static UINT32 get_vt_vblock(UINT32 const bank)
     ASSERT(bank < NUM_BANKS);
 
     UINT32 vblock;
-	//need to fix here!
     // search the block which has mininum valid pages
-    /*
 	vblock = mem_search_min_max(VCOUNT_ADDR + (bank * VBLKS_PER_BANK * sizeof(UINT16)),
                                 sizeof(UINT16),
                                 VBLKS_PER_BANK,
                                 MU_CMD_SEARCH_MIN_DRAM);
-	*/
-	UINT32 max_numerator = 0;
-	UINT32 max_denominator = 1;
-	for(int i = 0; i < VBLKS_PER_BANK; i++)
-	{
-		UINT16 valid_page_num = get_vcount(bank, i);
-		UINT32 age = read_dram_32(AGE_ADDR + (bank*VBLKS_PER_BANK+i)*sizeof(UINT32));
-        if (valid_page_num > PAGES_PER_BLK) continue;
-        if (age == 0) continue;
-		UINT32 numerator = (PAGES_PER_BLK - valid_page_num)* age;
-		UINT32 denominator = 2*valid_page_num;
-        if (numerator * max_denominator > max_numerator * denominator) {
-            vblock = i;  
-            max_numerator = numerator;
-            max_denominator = denominator;
-        }
-  
-	}
+
 
     ASSERT(is_bad_block(bank, vblock) == FALSE);
     ASSERT(vblock >= META_BLKS_PER_BANK && vblock < VBLKS_PER_BANK);
     ASSERT(get_vcount(bank, vblock) < (PAGES_PER_BLK - 1));
 
-    write_dram_32(AGE_ADDR + (bank * VBLKS_PER_BANK + vblock) * sizeof(UINT32),0);
     return vblock;
 }
 static void format(void)
