@@ -128,6 +128,7 @@ static UINT32 get_vcount(UINT32 const bank, UINT32 const vblock);
 static UINT32 get_vpn(UINT32 const lpn);
 static UINT32 get_vt_vblock(UINT32 const bank);
 static UINT32 assign_new_write_vpn(UINT32 const bank);
+static void zns_read(UINT32 const start_lba, UINT32 const num_sectors);
 
 static void sanity_check(void)
 {
