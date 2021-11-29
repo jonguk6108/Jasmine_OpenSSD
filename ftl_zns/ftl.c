@@ -426,6 +426,7 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors)
 {
     UINT32 cnt_for_nandread = 0;
     UINT32 i_sect = 0;
+    UINT32 next_read_buf_id;
     while (i_sect < num_sectors)
     {
         /*------------------------------------------*/
@@ -460,12 +461,12 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors)
             {
                 //buf에서 한번 쓰고있으면 SATA_RBUF가 움직이면 안댐
                 //생각해보기: SATA가 움직일수 있다?
-                UINT32 next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
+                next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
                 #if OPTION_FTL_TEST == 0
                 while (next_read_buf_id == GETREG(SATA_RBUF_PTR));	// wait if the read buffer is full (slow host)
                 #endif
             }
-            mem_set_dram(RD_BUF_PTR(g_ftl_read_buf_id) + c_offset * BYTES_PER_SECTOR,
+            mem_set_dram(RD_BUF_PTR(g_ftl_read_buf_id) + c_sect * BYTES_PER_SECTOR,
                 0xFFFFFFFF, 1 * BYTES_PER_SECTOR);
 
             flash_finish();
@@ -487,12 +488,12 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors)
                 /*---------read_commnad----------*/
                 if (c_sect == 0 || i_sect == 0)
                 {
-                    UINT32 next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
+                    next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
                     #if OPTION_FTL_TEST == 0
                     while (next_read_buf_id == GETREG(SATA_RBUF_PTR));	// wait if the read buffer is full (slow host)
                     #endif
                 }
-                mem_set_dram(RD_BUF_PTR(g_ftl_read_buf_id) + c_offset * BYTES_PER_SECTOR,
+                mem_set_dram(RD_BUF_PTR(g_ftl_read_buf_id) + c_sect * BYTES_PER_SECTOR,
                     0xFFFFFFFF, 1 * BYTES_PER_SECTOR);
 
                 flash_finish();
@@ -515,12 +516,12 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors)
                 /*---------read_commnad------------*/
                 if (c_sect == 0 || i_sect == 0)
                 {
-                    UINT32 next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
+                    next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
                     #if OPTION_FTL_TEST == 0
                     while (next_read_buf_id == GETREG(SATA_RBUF_PTR));	// wait if the read buffer is full (slow host)
                     #endif
                 }
-                mem_set_dram(RD_BUF_PTR(g_ftl_read_buf_id) + c_offset * BYTES_PER_SECTOR,
+                mem_set_dram(RD_BUF_PTR(g_ftl_read_buf_id) + c_sect * BYTES_PER_SECTOR,
                     data, 1 * BYTES_PER_SECTOR);
 
                 flash_finish();
@@ -564,12 +565,12 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors)
                     /*------------------*/
                     if (c_sect == 0 || i_sect == 0)
                     {
-                        UINT32 next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
+                        next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
                         #if OPTION_FTL_TEST == 0
                         while (next_read_buf_id == GETREG(SATA_RBUF_PTR));	// wait if the read buffer is full (slow host)
                         #endif
                     }
-                    mem_set_dram(RD_BUF_PTR(g_ftl_read_buf_id) + c_offset * BYTES_PER_SECTOR,
+                    mem_set_dram(RD_BUF_PTR(g_ftl_read_buf_id) + c_sect * BYTES_PER_SECTOR,
                         data, 1 * BYTES_PER_SECTOR);
 
                     flash_finish();
@@ -588,8 +589,8 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors)
                     {
                         UINT32 vblk = get_TL_bitmap(c_zone, DEG_ZONE * NSECT * NPAGE);
                         nand_page_ptread_to_host(c_bank,
-                            FBG,
                             vblk,
+                            p_offset,
                             (c_sect - cnt_for_nandread),
                             cnt_for_nandread);
 
