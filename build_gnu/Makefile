@@ -1,4 +1,4 @@
-FTL	= cb
+FTL	= zns
 PREFIX 	= arm-none-eabi-
 CC 	= $(PREFIX)gcc
 AS 	= $(PREFIX)as
