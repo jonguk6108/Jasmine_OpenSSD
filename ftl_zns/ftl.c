@@ -129,6 +129,8 @@ static UINT32 get_vpn(UINT32 const lpn);
 static UINT32 get_vt_vblock(UINT32 const bank);
 static UINT32 assign_new_write_vpn(UINT32 const bank);
 static void zns_read(UINT32 const start_lba, UINT32 const num_sectors);
+static void zns_write(UINT32 const start_lba, UINT32 const num_sectors);
+
 
 static void sanity_check(void)
 {
@@ -634,6 +636,57 @@ void ftl_write(UINT32 const lba, UINT32 const num_sectors)
     remain_sects = num_sectors;
 
 	g_ftl_statistics[get_num_bank(lpn)].host_write++;
+
+    if (lba == 7 && num_sectors == 11) // zone reset
+    {
+        while (g_ftl_write_buf_id == GETREG(SATA_WBUF_PTR));	// bm_write_limit should not outpace SATA_WBUF_PTR
+        UINT32 zone = read_dram_32(WR_BUF_PTR(g_ftl_write_buf_id) + lba * BYTES_PER_SECTOR);
+        g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS;		// Circular buffer
+        flash_finish();
+        SETREG(BM_STACK_WRSET, g_ftl_write_buf_id);	// change bm_write_limit
+        SETREG(BM_STACK_RESET, 0x01);				// change bm_write_limit
+
+        //call zns_reset
+        return;
+    }
+    if (lba == 7 && num_sectors == 13) {
+        while (g_ftl_write_buf_id == GETREG(SATA_WBUF_PTR));	// bm_write_limit should not outpace SATA_WBUF_PTR
+        UINT32 zone_number = read_dram_32(WR_BUF_PTR(g_ftl_write_buf_id) + lba * BYTES_PER_SECTOR);
+        UINT32 zone_cnt = read_dram_32(WR_BUF_PTR(g_ftl_write_buf_id) + lba * BYTES_PER_SECTOR + sizeof(int));
+        g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS;		// Circular buffer
+        flash_finish();
+        SETREG(BM_STACK_WRSET, g_ftl_write_buf_id);	// change bm_write_limit
+        SETREG(BM_STACK_RESET, 0x01);				// change bm_write_limit
+
+        zns_get_desc(zone_number, zone_cnt);
+        return;
+    }
+    if (lba == 1 && num_sectors == 31) {
+        //make DRAM addr for IZC (32KB DRAM)
+        while (g_ftl_write_buf_id == GETREG(SATA_WBUF_PTR));	// bm_write_limit should not outpace SATA_WBUF_PTR
+        UINT32 src_zone = read_dram_32(WR_BUF_PTR(g_ftl_write_buf_id) + lba * BYTES_PER_SECTOR);
+        UINT32 dst_zone = read_dram_32(WR_BUF_PTR(g_ftl_write_buf_id) + lba * BYTES_PER_SECTOR + sizeof(int));
+        UINT32 copy_len = read_dram_32(WR_BUF_PTR(g_ftl_write_buf_id) + lba * BYTES_PER_SECTOR + 2 * sizeof(int));
+        uart_printf("INTERNEL ZONE COMPACTION src zone is %d dst zone is %d copy len is %d\r\n", src_zone, dst_zone, copy_len);
+        //mem_copy(IZC_ADDR,(WR_BUF_PTR(g_ftl_write_buf_id)+lba*BYTES_PER_SECTOR + 3*sizeof(int)), copy_len * sizeof(int));
+        g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS;		// Circular buffer
+        flash_finish();
+        SETREG(BM_STACK_WRSET, g_ftl_write_buf_id);	// change bm_write_limit
+        SETREG(BM_STACK_RESET, 0x01);
+        return;
+    }
+    if (lba == 3 && num_sectors == 29) {
+        //make DRAM addr for TL open (32KB DRAM)
+        while (g_ftl_write_buf_id == GETREG(SATA_WBUF_PTR));	// bm_write_limit should not outpace SATA_WBUF_PTR
+        UINT32 src_zone = read_dram_32(WR_BUF_PTR(g_ftl_write_buf_id) + lba * BYTES_PER_SECTOR);
+        //mem_copy(TL_ADDR,(WR_BUF_PTR(g_ftl_write_buf_id)+lba*BYTES_PER_SECTOR + 1*sizeof(int)), SECTORS_PER_PAGE*PAGES_PER_BLK*NUM_BANKS);
+        //TL_OPEN(src_zone, TL_ADDR);
+        g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS;		// Circular buffer
+        flash_finish();
+        SETREG(BM_STACK_WRSET, g_ftl_write_buf_id);	// change bm_write_limit
+        SETREG(BM_STACK_RESET, 0x01);
+        return;
+    }
 
     while (remain_sects != 0)
     {
