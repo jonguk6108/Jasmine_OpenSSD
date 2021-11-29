@@ -428,7 +428,7 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors)
     UINT32 i_sect = 0;
     while (i_sect < num_sectors)
     {
-        /*****************************/
+        /*------------------------------------------*/
         UINT32 c_lba = start_lba + i_sect;
         UINT32 lba = start_lba + i_sect;
         UINT32 c_sect = lba % NSECT;
@@ -438,23 +438,23 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors)
         UINT32 p_offset = lba % NPAGE;
         lba = lba / NPAGE;
         UINT32 c_fcg = lba % NUM_FCG;
-        /*******************************/
+        /*------------------------------------------*/
 
         UINT32 c_zone = lba;
         if (c_zone >= NZONE) return;
         UINT32 c_bank = c_fcg * DEG_ZONE + b_offset;
 
-        /*****zone_state,wp,slba 읽어오기*********/
+        /*------zone_state,wp,slba 읽어오기---------*/
         UINT8 zone_state = get_zone_state(c_zone);
         UINT32 zone_wp = get_zone_wp(c_zone);
         UINT32 zone_slba = get_zone_slba(c_zone);
-        /****************************************/
+        /*------------------------------------------*/
 
         if (zone_state == 0)
         {
             //data[i_sect] = -1;
 
-            /*********read_commnad*********/
+            /*---------read_commnad-----------*/
             //첫 sect가 쓰이거나, 한페이지를 다 쓸경우 +1
             if (c_sect == 0 || i_sect == 0)
             {
@@ -473,7 +473,7 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors)
             SETREG(BM_STACK_RESET, 0x02);				// change bm_read_limit
             if (c_sect == 0 || i_sect == 0)
                 g_ftl_read_buf_id = next_read_buf_id;
-            /**********read*************/
+            /*----------read--------------*/
 
             i_sect++;
             continue;
@@ -484,7 +484,7 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors)
             {
                 //data[i_sect] = -1;
 
-                /*********read_commnad*********/
+                /*---------read_commnad----------*/
                 if (c_sect == 0 || i_sect == 0)
                 {
                     UINT32 next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
@@ -500,7 +500,7 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors)
                 SETREG(BM_STACK_RESET, 0x02);				// change bm_read_limit
                 if (c_sect == 0 || i_sect == 0)
                     g_ftl_read_buf_id = next_read_buf_id;
-                /**********read*************/
+                /*----------read--------------*/
 
 
                 i_sect++;
@@ -512,7 +512,7 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors)
 
                 UINT32 data = get_buffer_sector(c_zone, c_sect);
 
-                /*********read_commnad*********/
+                /*---------read_commnad------------*/
                 if (c_sect == 0 || i_sect == 0)
                 {
                     UINT32 next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
@@ -528,13 +528,13 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors)
                 SETREG(BM_STACK_RESET, 0x02);				// change bm_read_limit
                 if (c_sect == 0 || i_sect == 0)
                     g_ftl_read_buf_id = next_read_buf_id;
-                /**********read*************/
+                /*-----------read---------------*/
 
             }
             //데이터가 버퍼에 없을때 즉, nand에서 읽어와야댐 문제점: nand_page_pthread는 sect단위가아니고 page단위로 하는 듯.
             else 
             {
-                /**********normal_nandread***************/
+                /*------------normal_nandread-------------*/
                 cnt_for_nandread++;
                 //c_sect ==0 이고, 처음 sect읽을경우 아닐때 nandread
                 if (c_sect == 0 && i_sect != 0)
@@ -548,7 +548,7 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors)
 
                     cnt_for_nandread = 0;
                 }
-                /*****************************************/
+                /*------------------------------*/
             }
         }
         else if (zone_state == 3)
@@ -561,7 +561,7 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors)
                 {
                     UINT32 data = get_TL_buffer(c_zone, c_sect);
 
-                    /******************/
+                    /*------------------*/
                     if (c_sect == 0 || i_sect == 0)
                     {
                         UINT32 next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
@@ -577,12 +577,12 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors)
                     SETREG(BM_STACK_RESET, 0x02);				// change bm_read_limit
                     if (c_sect == 0 || i_sect == 0)
                         g_ftl_read_buf_id = next_read_buf_id;
-                    /***********************/
+                    /*------------------*/
 
                 }
                 else
                 {
-                    /**************TL_nandread*******************/
+                    /*---------TL_nandread-----------------*/
                     cnt_for_nandread++;
                     if (c_sect == 0 && i_sect != 0)
                     {
@@ -595,12 +595,12 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors)
 
                         cnt_for_nandread = 0;
                     }
-                    /*******************************************/
+                    /*-----------------------------------*/
                 }
             }
             else 
             {
-                /**********normal_nandread***************/
+                /*----------normal_nandread-----------*/
                 cnt_for_nandread++;
                 if (c_sect == 0 && i_sect != 0)
                 {
@@ -613,7 +613,7 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors)
 
                     cnt_for_nandread = 0;
                 }
-                /*****************************************/
+                /*---------------------------------*/
             }
         }
 
