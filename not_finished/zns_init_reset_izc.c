@@ -4,7 +4,7 @@ void zns_init(void)
 	{
 		set_zone_state(i, 0);
 		set_zone_slba(i, i * ZONE_SIZE);
-		set_zone_wp(i, i*ZONE_SIZE);
+		set_zone_wp(i, i * ZONE_SIZE);
 		
 		set_zone_to_FBG(i, -1);
 		
@@ -18,6 +18,22 @@ void zns_init(void)
 	{
 		enqueue_FBG(i);
 	}
+	//ZNS+
+	/*
+	for(UINT32 i = 0; i < NZONE; i++)
+	{	
+		for(UINT32 j = 0; j < DEG_ZONE * NPAGE; j++)
+		{
+			set_TL_bitmap(i, j, 0);
+		}
+		for(UINT32 j = 0; j < NSECT; j++)
+		{
+			set_TL_buffer(i, j,-1);
+		}
+		set_TL_num(i, -1);
+		set_TL_wp(i, 0);
+	}
+	*/
 }
 
 void zns_reset(UINT32 lba)
@@ -43,13 +59,13 @@ void zns_izc(UINT32 src_zone, UINT32 dest_zone, UINT32 copy_len, UINT32 *copy_li
 	ASSERT(src_zone < NZONE && dest_zone < NZONE);
 	ASSERT(get_zone_state(src_zone) == 2 && get_zone_state(dest_zone) == 0);
 	
-	UINT32 data;
+	UINT32 data[NSECT];
 	for(UINT32 i = 0; i < copy_len; i++)
 	{
-		UINT32 s_lba = get_zone_slba(src_zone) + copy_list[i];
-		zns_read(s_lba, 1, &data);
-		UINT32 d_lba = get_zone_slba(dest_zone) + i;
-		zns_write(d_lba, 1, &data);
+		UINT32 s_lba = get_zone_slba(src_zone) + copy_list[i] * NSECT;
+		zns_read(s_lba, NSECT, data);
+		UINT32 d_lba = get_zone_slba(dest_zone) + i * NSECT;
+		zns_write(d_lba, NSECT, data);
 	}
 	zns_reset(get_zone_slba(src_zone));
 }
