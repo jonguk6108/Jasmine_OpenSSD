@@ -689,8 +689,11 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
                     g_ftl_read_buf_id = next_read_buf_id;
 
             i_sect++;
-            if (i_sect == num_sectors && c_sect != NSECT - 1 && swch == 0)
+            if (i_sect == num_sectors && c_sect != NSECT - 1 && swch == 0) {
+                SETREG(BM_STACK_RDSET, next_read_buf_id);	// change bm_read_limit
+                SETREG(BM_STACK_RESET, 0x02);				// change bm_read_limit
                 g_ftl_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
+            }
             continue;
         }
         else if (zone_state == 1 || zone_state == 2)
@@ -768,6 +771,7 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
 
                 if (c_sect == NSECT - 1) {
                     if (swch == 0) {
+                        uart_printf("BM");
                         flash_finish();
                         SETREG(BM_STACK_RDSET, next_read_buf_id);	// change bm_read_limit
                         SETREG(BM_STACK_RESET, 0x02);				// change bm_read_limit
@@ -898,8 +902,11 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
 
 
         i_sect++;
-        if (i_sect == num_sectors && c_sect != NSECT - 1 && swch == 0)
+        if (i_sect == num_sectors && c_sect != NSECT - 1 && swch == 0) {
+            SETREG(BM_STACK_RDSET, next_read_buf_id);	// change bm_read_limit
+            SETREG(BM_STACK_RESET, 0x02);				// change bm_read_limit
             g_ftl_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
+        }
     }
     return;
 }
