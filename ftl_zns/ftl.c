@@ -68,6 +68,7 @@ static misc_metadata  g_misc_meta[NUM_BANKS];
 static ftl_statistics g_ftl_statistics[NUM_BANKS];
 static UINT32		  g_bad_blk_count[NUM_BANKS];
 UINT32 rp,wp;
+UINT32 wp_open, rp_open;
 UINT32 OPEN_ZONE;
 UINT32 rand_write_blks;
 
@@ -151,8 +152,8 @@ static void zns_reset(UINT32 c_zone);
 static void search_bad_blk_zone(void);
 static void enqueue_open_id(UINT8 open_zone_id);
 static UINT8 dequeue_open_id(void); 
-static void get_zone_to_ID(UINT32 zone_number);
-static UINT8 set_zone_to_ID(UINT32 zone_number, UINT8 id);
+static UINT8 get_zone_to_ID(UINT32 zone_number);
+static void set_zone_to_ID(UINT32 zone_number, UINT8 id);
 
 void nand_page_ptprogram_from_host_zns_write(UINT32 const bank, UINT32 const vblock, UINT32 const page_num, UINT32 const sect_offset, UINT32 const num_sectors, UINT32 const write_buffer_addr);
 void nand_page_ptread_to_host_zns_read(UINT32 const bank, UINT32 const vblock, UINT32 const page_num, UINT32 const sect_offset, UINT32 const num_sectors, UINT32 const read_buffer_addr);
@@ -369,7 +370,8 @@ void ftl_open(void)
     uart_printf("here3\n");
 	enable_irq();
     uart_printf("here4\n");
-	wp = 0; rp = 0; wp_open = 0; rp_open = 0;
+	wp = 0; rp = 0; 
+    wp_open = 0; rp_open = 0;
 	OPEN_ZONE = 0;	
 	search_bad_blk_zone();
     uart_printf("here5\n");
@@ -515,7 +517,7 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
             if (zone_state == 0)
             {
                 //Q) max_open_zone reset에서는 안만짐??
-                if (OPEN_ZONE == MAX_OPEN_ZONE) return -1;
+                if (OPEN_ZONE == MAX_OPEN_ZONE) return;
                 //Q) dequeue에서는 사용할 것이 없ㅇ면 리턴을 어케줌??
                 //if(FB[c_fcg][NBLK] == 0) return -1; 
 
@@ -581,7 +583,7 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
             {
                 set_zone_state(c_zone, 2);
 				UINT8 open_id = get_zone_to_ID(c_zone);
-				set_zone_to_ID(c_zone, -1)
+                set_zone_to_ID(c_zone, -1);
 				enqueue_open_id(open_id);
                 OPEN_ZONE -= 1;
             }
@@ -2132,7 +2134,7 @@ void enqueue_open_id(UINT8 open_zone_id)
 UINT8 dequeue_open_id(void)
 {
 	rp_open = rp_open % MAX_OPEN_ZONE;
-	UINT8 id = read_dram_8(OPEN_ZONE_Q_ADDR + rp_open * sizeof(UINT8), open_zone_id);
+	UINT8 id = read_dram_8(OPEN_ZONE_Q_ADDR + rp_open * sizeof(UINT8));
 	rp_open++;
 	return id;
 }
