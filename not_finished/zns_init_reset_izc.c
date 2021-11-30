@@ -90,9 +90,8 @@ void zns_izc(UINT32 src_zone, UINT32 dest_zone, UINT32 copy_len, UINT32 *copy_li
 	zns_reset(get_zone_slba(src_zone));
 }
 
-void zns_write(UINT32 const start_lba, UINT32 const num_sectors) 
+void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const write_buffer_addr, UINT32 const swch)
 {
-    UINT32 cnt_for_nandwrite = 0;
     UINT32 i_sect = 0;
     UINT32 next_write_buf_id;
     while (i_sect < num_sectors)
@@ -121,10 +120,7 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors)
 
         if (zone_state == 0 || zone_state == 1)
         {
-            if (zone_wp <= c_lba)
-            {
-                return -1;
-            }
+            ASSERT(zone_wp > c_lba);
             if (zone_state == 0)
             {
                 //Q) max_open_zone reset에서는 안만짐??
@@ -143,33 +139,44 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors)
             /*-------write to buffer----------*/
 
             // g_ftl_write 저거 옮기기?
-            if (c_sect == 0 || i_sect == 0)
+            if (c_sect == 0)
             {
                 //buf에서 한번 쓰고있으면 SATA_RBUF가 움직이면 안댐
                 //생각해보기: SATA가 움직일수 있다?
-                next_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS;
-#if OPTION_FTL_TEST == 0
-                while (next_write_buf_id == GETREG(SATA_WBUF_PTR));	// wait if the read buffer is full (slow host)
-#endif
+                next_write_buf_id = (write_buffer_addr + 1) % NUM_WR_BUFFERS;
+
+                if (swch == 0) {
+                #if OPTION_FTL_TEST == 0
+                    while (next_write_buf_id == GETREG(SATA_WBUF_PTR));	// wait if the read buffer is full (slow host)
+                #endif
+                }
             }
 
             UINT32 data;
-            mem_set_dram(data, WR_BUF_PTR(g_ftl_read_buf_id) + c_sect * BYTES_PER_SECTOR
+            if (swch == 0)
+                mem_set_dram(data, WR_BUF_PTR(write_buffer_addr) + c_sect * BYTES_PER_SECTOR
                 , 1 * BYTES_PER_SECTOR);
+            else
+                mem_set_dram(data, write_buffer_addr + c_sect * BYTES_PER_SECTOR
+                    , 1 * BYTES_PER_SECTOR);
             set_buffer_sector(c_zone, c_sect, data);
 
             if (c_sect == NSECT - 1)
             {
                 /*------------normal_nandwrite-------------*/
-                cnt_for_nandwrite++;
                 UINT32 vblk = get_zone_to_FBG(c_zone);
-                nand_page_ptread_to_host(c_bank,
+                if (swch == 0)
+                    nand_page_ptprogram_from_host(c_bank,
                     vblk,
                     p_offset,
-                    (c_sect - cnt_for_nandwrite),
-                    cnt_for_nandwrite);
-
-                cnt_for_nandwrite = 0;
+                    c_sect,
+                    1);
+                else
+                    nand_page_ptprogram_from_host_zns_write(c_bank,
+                        vblk,
+                        p_offset,
+                        c_sect,
+                        1);
                 /*------------------------------*/
             }
 
@@ -178,6 +185,9 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors)
                 set_zone_state(c_zone, 2);
                 //OPEN_ZONE -= 1;
             }
+
+            if (c_sect == 0)
+                write_buffer_addr = next_write_buf_id;
         }
 
         else if (zone_state == 2)
@@ -225,4 +235,35 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors)
 
         i_sect++;
     }
+}
+
+
+
+void nand_page_ptprogram_from_host(UINT32 const bank, UINT32 const vblock, UINT32 const page_num, UINT32 const sect_offset, UINT32 const num_sectors, UINT32 const write_buffer_addr)
+{
+    UINT32 row;
+
+    ASSERT(bank < NUM_BANKS);
+    ASSERT(vblock < VBLKS_PER_BANK);
+    ASSERT(page_num < PAGES_PER_BLK);
+
+    row = (vblock * PAGES_PER_BLK) + page_num;
+
+    SETREG(FCP_CMD, FC_COL_ROW_IN_PROG);
+    //이건아닌듯
+#if OPTION_FTL_TEST == TRUE
+    SETREG(FCP_OPTION, FO_P | FO_E | FO_B_W_DRDY);
+#else
+    SETREG(FCP_OPTION, FO_P | FO_E | FO_B_SATA_W);
+#endif
+    SETREG(FCP_DMA_ADDR, (write_buffer_addr));
+    SETREG(FCP_DMA_CNT, num_sectors * BYTES_PER_SECTOR);
+
+    SETREG(FCP_COL, sect_offset);
+    SETREG(FCP_ROW_L(bank), row);
+    SETREG(FCP_ROW_H(bank), row);
+
+    flash_issue_cmd(bank, RETURN_ON_ISSUE);
+
+    g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS;
 }

@@ -504,9 +504,8 @@ void ftl_read(UINT32 const lba, UINT32 const num_sectors)
     }
 }
 
-void zns_read(UINT32 const start_lba, UINT32 const num_sectors)
+void zns_read(UINT32 const start_lba, UINT32 const num_sectors , UINT32 const read_buffer_addr, UINT32 const swch)
 {
-    UINT32 cnt_for_nandread = 0;
     UINT32 i_sect = 0;
     UINT32 next_read_buf_id;
     while (i_sect < num_sectors)
@@ -539,23 +538,34 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors)
              //13주차 실습 18분 다시보기
             /*---------read_commnad-----------*/
             //첫 sect가 쓰이거나, 한페이지를 다 쓸경우 +1
-            if (c_sect == 0 || i_sect == 0)
+            //c_sect != 0 , i_sect == 0 일때도 다음 id에 적는다 왜냐면, offset 틀에 때문에????????
+            if (c_sect == 0)
             {
                 //buf에서 한번 쓰고있으면 SATA_RBUF가 움직이면 안댐
                 //생각해보기: SATA가 움직일수 있다?
-                next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
-                #if OPTION_FTL_TEST == 0
-                while (next_read_buf_id == GETREG(SATA_RBUF_PTR));	// wait if the read buffer is full (slow host)
-                #endif
+                //g_ftl_read_buf_id = 이제 쓸 곳
+                next_read_buf_id = (read_buffer_addr + 1) % NUM_RD_BUFFERS; 
+                if (swch == 0) {
+                    #if OPTION_FTL_TEST == 0
+                    while (next_read_buf_id == GETREG(SATA_RBUF_PTR));	// wait if the read buffer is full (slow host)
+                    #endif
+                }
             }
-            mem_set_dram(RD_BUF_PTR(g_ftl_read_buf_id) + c_sect * BYTES_PER_SECTOR,
-                0xFFFFFFFF, 1 * BYTES_PER_SECTOR);
 
-            flash_finish();
-            SETREG(BM_STACK_RDSET, next_read_buf_id);	// change bm_read_limit
-            SETREG(BM_STACK_RESET, 0x02);				// change bm_read_limit
-            if (c_sect == 0 || i_sect == 0)
-                g_ftl_read_buf_id = next_read_buf_id;
+            if (swch == 0) {
+                mem_set_dram(RD_BUF_PTR(read_buffer_addr) + c_sect * BYTES_PER_SECTOR,
+                    0xFFFFFFFF, 1 * BYTES_PER_SECTOR);
+                flash_finish();
+                SETREG(BM_STACK_RDSET, next_read_buf_id);	// change bm_read_limit
+                SETREG(BM_STACK_RESET, 0x02);				// change bm_read_limit
+            }
+           
+            else {
+                mem_set_dram(read_buffer_addr + c_sect * BYTES_PER_SECTOR,
+                    0xFFFFFFFF, 1 * BYTES_PER_SECTOR);
+            }
+            if (c_sect == 0)
+                read_buffer_addr = next_read_buf_id;
             /*----------read--------------*/
 
             i_sect++;
@@ -567,22 +577,29 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors)
             {
                 //data[i_sect] = -1;
 
-                /*---------read_commnad----------*/
-                if (c_sect == 0 || i_sect == 0)
+                /*---------read_commnad-----------*/
+                if (c_sect == 0)
                 {
-                    next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
-                    #if OPTION_FTL_TEST == 0
+                    next_read_buf_id = (read_buffer_addr + 1) % NUM_RD_BUFFERS;
+                #if OPTION_FTL_TEST == 0
                     while (next_read_buf_id == GETREG(SATA_RBUF_PTR));	// wait if the read buffer is full (slow host)
-                    #endif
+                #endif
                 }
-                mem_set_dram(RD_BUF_PTR(g_ftl_read_buf_id) + c_sect * BYTES_PER_SECTOR,
-                    0xFFFFFFFF, 1 * BYTES_PER_SECTOR);
 
-                flash_finish();
-                SETREG(BM_STACK_RDSET, next_read_buf_id);	// change bm_read_limit
-                SETREG(BM_STACK_RESET, 0x02);				// change bm_read_limit
-                if (c_sect == 0 || i_sect == 0)
-                    g_ftl_read_buf_id = next_read_buf_id;
+                if (swch == 0) {
+                    mem_set_dram(RD_BUF_PTR(read_buffer_addr) + c_sect * BYTES_PER_SECTOR,
+                        0xFFFFFFFF, 1 * BYTES_PER_SECTOR);
+                    flash_finish();
+                    SETREG(BM_STACK_RDSET, next_read_buf_id);	// change bm_read_limit
+                    SETREG(BM_STACK_RESET, 0x02);				// change bm_read_limit
+                }
+                else {
+                    mem_set_dram(read_buffer_addr + c_sect * BYTES_PER_SECTOR,
+                        0xFFFFFFFF, 1 * BYTES_PER_SECTOR);
+                }
+
+                if (c_sect == 0)
+                    read_buffer_addr = next_read_buf_id;
                 /*----------read--------------*/
 
 
@@ -595,45 +612,57 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors)
 
                 UINT32 data = get_buffer_sector(c_zone, c_sect);
 
-                /*---------read_commnad------------*/
-                if (c_sect == 0 || i_sect == 0)
+                /*---------read_commnad-----------*/
+                if (c_sect == 0)
                 {
-                    next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
+                    next_read_buf_id = (read_buffer_addr + 1) % NUM_RD_BUFFERS;
                     #if OPTION_FTL_TEST == 0
                     while (next_read_buf_id == GETREG(SATA_RBUF_PTR));	// wait if the read buffer is full (slow host)
                     #endif
                 }
-                mem_set_dram(RD_BUF_PTR(g_ftl_read_buf_id) + c_sect * BYTES_PER_SECTOR,
-                    data, 1 * BYTES_PER_SECTOR);
 
-                flash_finish();
-                SETREG(BM_STACK_RDSET, next_read_buf_id);	// change bm_read_limit
-                SETREG(BM_STACK_RESET, 0x02);				// change bm_read_limit
-                if (c_sect == 0 || i_sect == 0)
-                    g_ftl_read_buf_id = next_read_buf_id;
-                /*-----------read---------------*/
+                if (swch == 0) {
+                    mem_set_dram(RD_BUF_PTR(read_buffer_addr) + c_sect * BYTES_PER_SECTOR,
+                        data, 1 * BYTES_PER_SECTOR);
+                    flash_finish();
+                    SETREG(BM_STACK_RDSET, next_read_buf_id);	// change bm_read_limit
+                    SETREG(BM_STACK_RESET, 0x02);				// change bm_read_limit
+                }
+                else {
+                    mem_set_dram(read_buffer_addr + c_sect * BYTES_PER_SECTOR,
+                        data, 1 * BYTES_PER_SECTOR);
+                }
+
+                if (c_sect == 0)
+                    read_buffer_addr = next_read_buf_id;
+                /*----------read--------------*/
 
             }
             //데이터가 버퍼에 없을때 즉, nand에서 읽어와야댐 문제점: nand_page_pthread는 sect단위가아니고 page단위로 하는 듯.
             else 
             {
                 /*------------normal_nandread-------------*/
-                cnt_for_nandread++;
                 //c_sect ==0 이고, 처음 sect읽을경우 아닐때 nandread
-                if (c_sect == 0 && i_sect != 0)
-                {
-                    UINT32 vblk = get_zone_to_FBG(c_zone);
+                UINT32 vblk = get_zone_to_FBG(c_zone);
+
+                if (swch == 0)
                     nand_page_ptread_to_host(c_bank,
                         vblk,
                         p_offset,
-                        (c_sect - cnt_for_nandread),
-                        cnt_for_nandread);
+                        (c_sect),
+                        1);
 
-                    cnt_for_nandread = 0;
-                }
+                else
+                    nand_page_ptread_to_host_zns_read(c_bank,
+                        vblk,
+                        p_offset,
+                        (c_sect),
+                        1);
                 /*------------------------------*/
             }
         }
+
+
         else if (zone_state == 3)
         {
             UINT32 i_tl  =  c_lba - c_zone * DEG_ZONE * NSECT * NPAGE;
@@ -644,23 +673,26 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors)
                 {
                     UINT32 data = get_TL_buffer(c_zone, c_sect);
 
-                    /*------------------*/
-                    if (c_sect == 0 || i_sect == 0)
+                    /*---------read_commnad-----------*/
+                    if (c_sect == 0)
                     {
-                        next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
+                        next_read_buf_id = (read_buffer_addr + 1) % NUM_RD_BUFFERS;
                         #if OPTION_FTL_TEST == 0
                         while (next_read_buf_id == GETREG(SATA_RBUF_PTR));	// wait if the read buffer is full (slow host)
                         #endif
                     }
-                    mem_set_dram(RD_BUF_PTR(g_ftl_read_buf_id) + c_sect * BYTES_PER_SECTOR,
-                        data, 1 * BYTES_PER_SECTOR);
+                    mem_set_dram(RD_BUF_PTR(read_buffer_addr) + c_sect * BYTES_PER_SECTOR,
+                        0xFFFFFFFF, 1 * BYTES_PER_SECTOR);
 
-                    flash_finish();
-                    SETREG(BM_STACK_RDSET, next_read_buf_id);	// change bm_read_limit
-                    SETREG(BM_STACK_RESET, 0x02);				// change bm_read_limit
-                    if (c_sect == 0 || i_sect == 0)
-                        g_ftl_read_buf_id = next_read_buf_id;
-                    /*------------------*/
+                    if (swch == 0) {
+                        flash_finish();
+                        SETREG(BM_STACK_RDSET, next_read_buf_id);	// change bm_read_limit
+                        SETREG(BM_STACK_RESET, 0x02);				// change bm_read_limit
+                    }
+
+                    if (c_sect == 0)
+                        read_buffer_addr = next_read_buf_id;
+                    /*----------read--------------*/
 
                 }
                 else
@@ -704,6 +736,46 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors)
     }
     return;
 }
+
+void nand_page_ptread_to_host_zns_read(UINT32 const bank, UINT32 const vblock, UINT32 const page_num, UINT32 const sect_offset, UINT32 const num_sectors, UINT32 const read_buffer_addr)
+{
+    UINT32 row;
+
+    ASSERT(bank < NUM_BANKS);
+    ASSERT(vblock < VBLKS_PER_BANK);
+    ASSERT(page_num < PAGES_PER_BLK);
+
+    row = (vblock * PAGES_PER_BLK) + page_num;
+
+    SETREG(FCP_CMD, FC_COL_ROW_READ_OUT);
+    SETREG(FCP_DMA_ADDR, RD_BUF_PTR(read_buffer_addr));
+    SETREG(FCP_DMA_CNT, num_sectors * BYTES_PER_SECTOR);
+
+    SETREG(FCP_COL, sect_offset);
+#if OPTION_FTL_TEST == TRUE
+    SETREG(FCP_OPTION, FO_P | FO_E);
+#else
+    SETREG(FCP_OPTION, FO_P | FO_E | FO_B_SATA_R);
+#endif
+    SETREG(FCP_ROW_L(bank), row);
+    SETREG(FCP_ROW_H(bank), row);
+
+    g_ftl_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
+
+#if OPTION_FTL_TEST == FALSE
+    {
+        while (1)
+        {
+            UINT32 sata_id = GETREG(SATA_RBUF_PTR);
+
+            if (g_ftl_read_buf_id != sata_id)
+                break;
+        }
+    }
+#endif
+    flash_issue_cmd(bank, RETURN_ON_ISSUE);
+}
+
 
 void zns_read_internal(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const* one_data)
 {
@@ -936,9 +1008,8 @@ static void write_page(UINT32 const lpn, UINT32 const sect_offset, UINT32 const 
     set_vcount(bank, vblock, get_vcount(bank, vblock) + 1);
 }
 
-void zns_write(UINT32 const start_lba, UINT32 const num_sectors) 
+void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const write_buffer_addr, UINT32 const swch)
 {
-    UINT32 cnt_for_nandwrite = 0;
     UINT32 i_sect = 0;
     UINT32 next_write_buf_id;
     while (i_sect < num_sectors)
@@ -967,10 +1038,7 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors)
 
         if (zone_state == 0 || zone_state == 1)
         {
-            if (zone_wp <= c_lba)
-            {
-                return -1;
-            }
+            ASSERT(zone_wp > c_lba);
             if (zone_state == 0)
             {
                 //Q) max_open_zone reset에서는 안만짐??
@@ -989,33 +1057,44 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors)
             /*-------write to buffer----------*/
 
             // g_ftl_write 저거 옮기기?
-            if (c_sect == 0 || i_sect == 0)
+            if (c_sect == 0)
             {
                 //buf에서 한번 쓰고있으면 SATA_RBUF가 움직이면 안댐
                 //생각해보기: SATA가 움직일수 있다?
-                next_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS;
+                next_write_buf_id = (write_buffer_addr + 1) % NUM_WR_BUFFERS;
+
+                if (swch == 0) {
 #if OPTION_FTL_TEST == 0
-                while (next_write_buf_id == GETREG(SATA_WBUF_PTR));	// wait if the read buffer is full (slow host)
+                    while (next_write_buf_id == GETREG(SATA_WBUF_PTR));	// wait if the read buffer is full (slow host)
 #endif
+                }
             }
 
             UINT32 data;
-            mem_set_dram(data, WR_BUF_PTR(g_ftl_read_buf_id) + c_sect * BYTES_PER_SECTOR
-                , 1 * BYTES_PER_SECTOR);
+            if (swch == 0)
+                mem_set_dram(data, WR_BUF_PTR(write_buffer_addr) + c_sect * BYTES_PER_SECTOR
+                    , 1 * BYTES_PER_SECTOR);
+            else
+                mem_set_dram(data, write_buffer_addr + c_sect * BYTES_PER_SECTOR
+                    , 1 * BYTES_PER_SECTOR);
             set_buffer_sector(c_zone, c_sect, data);
 
             if (c_sect == NSECT - 1)
             {
                 /*------------normal_nandwrite-------------*/
-                cnt_for_nandwrite++;
                 UINT32 vblk = get_zone_to_FBG(c_zone);
-                nand_page_ptread_to_host(c_bank,
-                    vblk,
-                    p_offset,
-                    (c_sect - cnt_for_nandwrite),
-                    cnt_for_nandwrite);
-
-                cnt_for_nandwrite = 0;
+                if (swch == 0)
+                    nand_page_ptprogram_from_host(c_bank,
+                        vblk,
+                        p_offset,
+                        c_sect,
+                        1);
+                else
+                    nand_page_ptprogram_from_host_zns_write(c_bank,
+                        vblk,
+                        p_offset,
+                        c_sect,
+                        1);
                 /*------------------------------*/
             }
 
@@ -1024,6 +1103,9 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors)
                 set_zone_state(c_zone, 2);
                 //OPEN_ZONE -= 1;
             }
+
+            if (c_sect == 0)
+                write_buffer_addr = next_write_buf_id;
         }
 
         else if (zone_state == 2)
@@ -1035,7 +1117,7 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors)
             //if(TL_BITMAP[c_zone][tl_num] == 1)
             //return -1;
             // 
-            
+
             UINT32 TL_WP = get_TL_wp(c_zone);
             //if (TL_WP[c_zone] != tl_num)
                 //return -1;
@@ -1058,7 +1140,7 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors)
             mem_set_dram(data, WR_BUF_PTR(g_ftl_read_buf_id) + c_sect * BYTES_PER_SECTOR
                 , 1 * BYTES_PER_SECTOR);
             set_TL_buffer(c_zone, c_sect, data);
-            
+
             //fill_tl(c_zone, c_lba + 1, tl_num + 1);
 
             if (TL_WP == DEG_ZONE * NSECT * NPAGE) {
@@ -1071,6 +1153,37 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors)
 
         i_sect++;
     }
+}
+
+
+
+void nand_page_ptprogram_from_host(UINT32 const bank, UINT32 const vblock, UINT32 const page_num, UINT32 const sect_offset, UINT32 const num_sectors, UINT32 const write_buffer_addr)
+{
+    UINT32 row;
+
+    ASSERT(bank < NUM_BANKS);
+    ASSERT(vblock < VBLKS_PER_BANK);
+    ASSERT(page_num < PAGES_PER_BLK);
+
+    row = (vblock * PAGES_PER_BLK) + page_num;
+
+    SETREG(FCP_CMD, FC_COL_ROW_IN_PROG);
+    //이건아닌듯
+#if OPTION_FTL_TEST == TRUE
+    SETREG(FCP_OPTION, FO_P | FO_E | FO_B_W_DRDY);
+#else
+    SETREG(FCP_OPTION, FO_P | FO_E | FO_B_SATA_W);
+#endif
+    SETREG(FCP_DMA_ADDR, (write_buffer_addr));
+    SETREG(FCP_DMA_CNT, num_sectors * BYTES_PER_SECTOR);
+
+    SETREG(FCP_COL, sect_offset);
+    SETREG(FCP_ROW_L(bank), row);
+    SETREG(FCP_ROW_H(bank), row);
+
+    flash_issue_cmd(bank, RETURN_ON_ISSUE);
+
+    g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS;
 }
 
 void zns_reset(UINT32 c_zone)
