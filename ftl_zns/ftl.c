@@ -495,12 +495,12 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
                 if (swch == 0)
                     next_write_buf_id = (write_buffer_addr + 1) % NUM_WR_BUFFERS;
                 else
-                    _write_buffer_addr += BYTES_PER_PAGE;
+                    _write_buffer_addr = write_buffer_addr + BYTES_PER_PAGE;
 
                 if (swch == 0) {
-#if OPTION_FTL_TEST == 0
+                    #if OPTION_FTL_TEST == 0
                     while (next_write_buf_id == GETREG(SATA_WBUF_PTR));	// wait if the read buffer is full (slow host)
-#endif
+                    #endif
                 }
             }
 
@@ -630,7 +630,7 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
                 if (swch == 0)
                     next_read_buf_id = (_read_buffer_addr + 1) % NUM_RD_BUFFERS;
                 else
-                    next_read_buf_id += BYTES_PER_PAGE;
+                    next_read_buf_id = _read_buffer_addr + BYTES_PER_PAGE;
                 if (swch == 0) {
                     #if OPTION_FTL_TEST == 0
                     while (next_read_buf_id == GETREG(SATA_RBUF_PTR));	// wait if the read buffer is full (slow host)
