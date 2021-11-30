@@ -490,7 +490,7 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
 
     while (i_sect < num_sectors)
     {
-        /*------------------------------------------*/
+
         UINT32 c_lba = start_lba + i_sect;
         UINT32 lba = start_lba + i_sect;
         UINT32 c_sect = lba % NSECT;
@@ -620,6 +620,9 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
         */
 
         i_sect++;
+
+        if( i_sect == num_sectors && c_sect != NSECT -1 && swch == 0)
+            g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS;
     }
 }
 void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const read_buffer_addr, UINT32 const swch)
@@ -879,7 +882,8 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
 
 
         i_sect++;
-        
+        if (i_sect == num_sectors && c_sect != NSECT - 1 && swch == 0)
+            g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS;
     }
     return;
 }
