@@ -69,6 +69,7 @@ static ftl_statistics g_ftl_statistics[NUM_BANKS];
 static UINT32		  g_bad_blk_count[NUM_BANKS];
 UINT32 rp,wp;
 UINT32 open_zone;
+UINT32 rand_write_blks;
 
 // SATA read/write buffer pointer id
 UINT32 				  g_ftl_read_buf_id;
@@ -331,6 +332,14 @@ void ftl_open(void)
 	SETREG(FCONF_PAUSE, FIRQ_DATA_CORRUPT | FIRQ_BADBLK_L | FIRQ_BADBLK_H);
 
 	enable_irq();
+	search_bad_blk_zone();
+	
+	UINT32 zone_number = -1;
+	for(int i = 0; i < 8; i++)
+	{
+		zone_number = dequeue_FBG();
+	}
+	rand_write_blks = zone_number + 1;
 	zns_init();
 
     /****FTL 세팅값 ******/
@@ -344,6 +353,25 @@ void ftl_open(void)
     uart_printf("----------------------");
     /********************/
 
+}
+void search_bad_blk_zone(void)
+{
+	for(UINT32 i = 0; i < NUM_BANKS; i++)
+	{
+		BOOL32 flag = TRUE;
+		for(UINT32 j = 0; j < VBLKS_PER_BANK; j++)
+		{
+			if(is_bad_block(i, j))
+			{				
+				flag = FALSE;
+				break;
+			}
+		}
+		if(flag)
+		{
+			enqueue_FBG(j);
+		}
+	}
 }
 void ftl_flush(void)
 {
@@ -377,10 +405,12 @@ void zns_init(void)
 		}
 	}
 	
+	/*
 	for(UINT32 i = 0; i< NBLK; i++)
 	{
 		enqueue_FBG(i);
 	}
+	*/
 	//ZNS+
 	/*
 	for(UINT32 i = 0; i < NZONE; i++)
@@ -398,6 +428,8 @@ void zns_init(void)
 	}
 	*/
 }
+
+
 
 void ftl_read(UINT32 const lba, UINT32 const num_sectors)
 {
