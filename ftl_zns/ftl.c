@@ -544,6 +544,8 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
             if (swch == 0) {
                 mem_copy(ZONE_BUFFER_ADDR + open_id * BYTES_PER_PAGE + c_sect * BYTES_PER_SECTOR, WR_BUF_PTR(g_ftl_write_buf_id) + c_sect * BYTES_PER_SECTOR, BYTES_PER_SECTOR);
                 uart_printf("write : copy to zone buffer, open_id %d, c_sect %d, addr : %x", open_id, c_sect, ZONE_BUFFER_ADDR + open_id * BYTES_PER_PAGE + c_sect * BYTES_PER_SECTOR);
+                UINT32 data = read_dram_32(ZONE_BUFFER_ADDR + open_id * BYTES_PER_PAGE + c_sect * BYTES_PER_SECTOR);
+                uart_printf("%c", data);
             }
                 //mem_set_dram(data, WR_BUF_PTR(g_ftl_write_buf_id) + c_sect * BYTES_PER_SECTOR, 1 * BYTES_PER_SECTOR);
             else
@@ -687,6 +689,8 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
                     g_ftl_read_buf_id = next_read_buf_id;
 
             i_sect++;
+            if (i_sect == num_sectors && c_sect != NSECT - 1 && swch == 0)
+                g_ftl_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
             continue;
         }
         else if (zone_state == 1 || zone_state == 2)
@@ -726,6 +730,8 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
                         g_ftl_read_buf_id = next_read_buf_id;
 
                 i_sect++;
+                if (i_sect == num_sectors && c_sect != NSECT - 1 && swch == 0)
+                    g_ftl_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
                 continue;
             }
 
@@ -734,7 +740,10 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
             {
                 UINT8 open_id = get_zone_to_ID(c_zone);
                 UINT32 data = get_buffer_sector(open_id, c_sect);
+                if (swch == 0) {
+                    next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
 
+                }
                 if (c_sect == NSECT - 1)
                 {
                     if (swch == 0) {
@@ -748,19 +757,23 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
                 if (swch == 0) {
                     mem_copy(RD_BUF_PTR(g_ftl_read_buf_id) + c_sect * BYTES_PER_SECTOR, ZONE_BUFFER_ADDR + open_id * BYTES_PER_PAGE + c_sect * BYTES_PER_SECTOR, BYTES_PER_SECTOR);
                     uart_printf("read : copy to zone buffer, open_id %d, c_sect %d, addr : %x, rid : %d", open_id, c_sect, ZONE_BUFFER_ADDR + open_id * BYTES_PER_PAGE + c_sect * BYTES_PER_SECTOR, g_ftl_read_buf_id);
+                    UINT32 data = read_dram_32(ZONE_BUFFER_ADDR + open_id * BYTES_PER_PAGE + c_sect * BYTES_PER_SECTOR);
+                    UINT32 data2 = read_dram_32(RD_BUF_PTR(g_ftl_read_buf_id) + c_sect * BYTES_PER_SECTOR);
                     //mem_set_dram(RD_BUF_PTR(g_ftl_read_buf_id) + c_sect * BYTES_PER_SECTOR,data, 1 * BYTES_PER_SECTOR);
-                    flash_finish();
-                    SETREG(BM_STACK_RDSET, next_read_buf_id);	// change bm_read_limit
-                    SETREG(BM_STACK_RESET, 0x02);				// change bm_read_limit
                 }
                 else {
                     mem_set_dram(_read_buffer_addr + c_sect * BYTES_PER_SECTOR,
                         data, 1 * BYTES_PER_SECTOR);
                 }
 
-                if (c_sect == NSECT - 1)
-                    if (swch == 0)
+                if (c_sect == NSECT - 1) {
+                    if (swch == 0) {
+                        flash_finish();
+                        SETREG(BM_STACK_RDSET, next_read_buf_id);	// change bm_read_limit
+                        SETREG(BM_STACK_RESET, 0x02);				// change bm_read_limit
                         g_ftl_read_buf_id = next_read_buf_id;
+                    }
+                }
             }
             //데이터가 버퍼에 없을때 즉, nand에서 읽어와야댐 문제점: nand_page_pthread는 sect단위가아니고 page단위로 하는 듯.
             else
