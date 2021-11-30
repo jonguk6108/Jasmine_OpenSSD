@@ -446,16 +446,17 @@ void zns_init(void)
 		set_zone_to_FBG(i, -1);
 
        // uart_printf("%d\n",i);
+	}
+	
+	
+	for(UINT8 i = 0; i < MAX_OPEN_ZONE; i++)
+	{
+		enqueue_open_id(i);
 		for(UINT32 j = 0; j < NSECT; j++)
 		{
         //    uart_printf("%d %d\n", i,j);
 			set_buffer_sector(i, j, -1);
 		}
-	}
-	
-	for(UINT8 i = 0; i < MAX_OPEN_ZONE; i++)
-	{
-		enqueue_open_id(i);
 	}
 	
 	/*
@@ -557,7 +558,9 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
             else
                 mem_set_dram(data, _write_buffer_addr + c_sect * BYTES_PER_SECTOR
                     , 1 * BYTES_PER_SECTOR);
-            set_buffer_sector(c_zone, c_sect, data);
+			
+			UINT8 open_id = get_zone_to_ID(c_zone);
+            set_buffer_sector(open_id, c_sect, data);
 
             if (c_sect == NSECT - 1)
             {
@@ -755,7 +758,8 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
             if (((zone_wp - 1) / NSECT) * NSECT <= c_lba && ((zone_wp - 1) % NSECT) != NSECT - 1)
             {
 
-                UINT32 data = get_buffer_sector(c_zone, c_sect);
+                UINT8 open_id  = get_zone_to_ID(c_zone);
+				UINT32 data = get_buffer_sector(open_id, c_sect);
 
                 /*---------read_commnad-----------*/
                 if (c_sect == NSECT - 1)
