@@ -168,6 +168,32 @@ static void sanity_check(void)
 {
     UINT32 dram_requirement = RD_BUF_BYTES + WR_BUF_BYTES + COPY_BUF_BYTES + FTL_BUF_BYTES
         + HIL_BUF_BYTES + TEMP_BUF_BYTES + BAD_BLK_BMP_BYTES + PAGE_MAP_BYTES + VCOUNT_BYTES;
+    
+    uart_printf("DRAM_BASE: 0x%x / %u",DRAM_BASE,DRAM_BASE);
+    uart_printf("COPY_BUF_ADDR: 0x%x / %u", COPY_BUF_ADDR, COPY_BUF_ADDR);
+    uart_printf("DRAM_TOP : 0x%x / %u", DRAM_TOP, DRAM_TOP);
+    uart_printf("DRAM_SIZE: 0x%x / %u", DRAM_SIZE, DRAM_SIZE);
+    uart_printf("OTHE_SIZE: 0x%x / %u", DRAM_BYTES_OTHER, DRAM_BYTES_OTHER);
+    uart_printf("diff SIZE: 0x%x / %u", DRAM_SIZE - DRAM_BYTES_OTHER, DRAM_SIZE - DRAM_BYTES_OTHER);
+
+    uart_printf("RD_BUF_BYTES   : 0x%x / %u", RD_BUF_BYTES, RD_BUF_BYTES);
+    uart_printf("WR_BUF_BYTES   : 0x%x / %u", WR_BUF_BYTES, WR_BUF_BYTES);
+    uart_printf("COPY_BUF_BYTES : 0x%x / %u", COPY_BUF_BYTES, COPY_BUF_BYTES);
+    uart_printf("FTL_BUF_BYTES  : 0x%x / %u", FTL_BUF_BYTES, FTL_BUF_BYTES);
+    uart_printf("HIL_BUF_BYTES  : 0x%x / %u", HIL_BUF_BYTES, HIL_BUF_BYTES);
+    uart_printf("TEMP_BUF_BYTES : 0x%x / %u", TEMP_BUF_BYTES, TEMP_BUF_BYTES);
+    uart_printf("BAD_BLK_BMP_BYTES: 0x%x / %u", BAD_BLK_BMP_BYTES, BAD_BLK_BMP_BYTES);
+    uart_printf("PAGE_MAP_BYTES: 0x%x / %u", PAGE_MAP_BYTES, PAGE_MAP_BYTES);
+    uart_printf("VCOUNT_BYTES: 0x%x / %u", VCOUNT_BYTES, VCOUNT_BYTES);
+    uart_printf("ZONE_STATE_BYTES: 0x%x / %u", ZONE_STATE_BYTES, ZONE_STATE_BYTES);
+    uart_printf("ZONE_WP_BYTES: 0x%x / %u", ZONE_WP_BYTES, ZONE_WP_BYTES);
+    uart_printf("ZONE_SLBA_BYTES: 0x%x / %u", ZONE_SLBA_BYTES, ZONE_SLBA_BYTES);
+    uart_printf("ZONE_BUFFER_BYTES: 0x%x / %u", ZONE_BUFFER_BYTES, ZONE_BUFFER_BYTES);
+    uart_printf("ZONE_TO_FBG_BYTES: 0x%x / %u", ZONE_TO_FBG_BYTES, ZONE_TO_FBG_BYTES);
+    uart_printf("FBQ_BYTES: 0x%x / %u", FBQ_BYTES, FBQ_BYTES);
+
+
+    uart_printf("1 : %d %u %d %u \n", DRAM_BYTES_OTHER, DRAM_BYTES_OTHER, DRAM_SIZE - DRAM_BYTES_OTHER, DRAM_SIZE-DRAM_BYTES_OTHER);
 
     if ((dram_requirement > DRAM_SIZE) || // DRAM metadata size check
         (sizeof(misc_metadata) > BYTES_PER_PAGE)) // misc metadata size check
@@ -175,6 +201,7 @@ static void sanity_check(void)
         led_blink();
         while (1);
     }
+    uart_printf("no matter\n");
 }
 static void build_bad_blk_list(void)
 {
@@ -324,31 +351,33 @@ void ftl_open(void)
     // load FTL metadata
     else
     {
+
         load_metadata();
     }
 	g_ftl_read_buf_id = 0;
 	g_ftl_write_buf_id = 0;
-
+    uart_printf("here1\n");
     // This example FTL can handle runtime bad block interrupts and read fail (uncorrectable bit errors) interrupts
     flash_clear_irq();
-
+    uart_printf("here2\n");
     SETREG(INTR_MASK, FIRQ_DATA_CORRUPT | FIRQ_BADBLK_L | FIRQ_BADBLK_H);
 	SETREG(FCONF_PAUSE, FIRQ_DATA_CORRUPT | FIRQ_BADBLK_L | FIRQ_BADBLK_H);
-
+    uart_printf("here3\n");
 	enable_irq();
-	
+    uart_printf("here4\n");
 	wp = 0; rp = 0;
 	open_zone = 0;	
 	search_bad_blk_zone();
-	
+    uart_printf("here5\n");
 	UINT32 zone_number = -1;
 	for(int i = 0; i < 8; i++)
 	{
 		zone_number = dequeue_FBG();
 	}
 	rand_write_blks = zone_number + 1;
+    uart_printf("here6\n");
 	zns_init();
-
+    uart_printf("here7\n");
     /****FTL 세팅값 ******/
     uart_printf("\n----------------------");
     uart_printf("NUM_LSECTORS : %d", NUM_LSECTORS);
@@ -359,16 +388,16 @@ void ftl_open(void)
     uart_printf("BYTES_PER_SECTOR : %d", BYTES_PER_SECTOR);
     uart_printf("----------------------");
     /********************/
-
 }
 void search_bad_blk_zone(void)
 {
-	for(UINT32 j = 0; j < VBLKS_PER_BANK; j++)
+	UINT32 vcount , j ,i ;
+	for(j = 0; j < VBLKS_PER_BANK; j++)
 	{
 		BOOL32 flag = TRUE;
-		for(UINT32 i = 0; i < NUM_BANKS; i++)
+		for( i = 0; i < NUM_BANKS; i++)
 		{
-			UINT32 vcount = read_dram_16(VCOUNT_ADDR + ((i * VBLKS_PER_BANK) + j) * sizeof(UINT16));
+			 vcount = read_dram_16(VCOUNT_ADDR + ((i * VBLKS_PER_BANK) + j) * sizeof(UINT16));
 			if(vcount == VC_MAX)
 			{				
 				flag = FALSE;
@@ -402,13 +431,18 @@ void zns_init(void)
 	for(UINT32 i = 0; i < NZONE; i++)
 	{
 		set_zone_state(i, 0);
+       // uart_printf("init1\n");
 		set_zone_slba(i, i * ZONE_SIZE);
+       // uart_printf("init2\n");
 		set_zone_wp(i, i * ZONE_SIZE);
+       // uart_printf("init3\n");
 		
 		set_zone_to_FBG(i, -1);
-		
+
+       // uart_printf("%d\n",i);
 		for(UINT32 j = 0; j < NSECT; j++)
 		{
+        //    uart_printf("%d %d\n", i,j);
 			set_buffer_sector(i, j, -1);
 		}
 	}
@@ -2033,10 +2067,13 @@ UINT32 get_buffer_sector(UINT32 zone_number, UINT32 sector_offset)
 }
 void set_buffer_sector(UINT32 zone_number, UINT32 sector_offset, UINT32 data)
 {
+    //uart_printf("her1\n");
 	ASSERT(zone_number < NBLK);
+   // uart_printf("here2\n");
 	ASSERT(sector_offset < SECTORS_PER_PAGE);
-
+   // uart_printf("here3\n");
 	write_dram_32(ZONE_BUFFER_ADDR + (zone_number * SECTORS_PER_PAGE + sector_offset) * sizeof(UINT32), data);
+  //  uart_printf("here4\n");
 }
 
 UINT32 get_zone_to_FBG(UINT32 zone_number)
