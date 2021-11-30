@@ -68,7 +68,7 @@ static misc_metadata  g_misc_meta[NUM_BANKS];
 static ftl_statistics g_ftl_statistics[NUM_BANKS];
 static UINT32		  g_bad_blk_count[NUM_BANKS];
 UINT32 rp,wp;
-UINT32 open_zone;
+UINT32 OPEN_ZONE;
 UINT32 rand_write_blks;
 
 // SATA read/write buffer pointer id
@@ -149,6 +149,10 @@ static void enqueue_FBG(UINT32 block_num);
 static UINT32 dequeue_FBG(void);
 static void zns_reset(UINT32 c_zone);
 static void search_bad_blk_zone(void);
+static void enqueue_open_id(UINT8 open_zone_id);
+static UINT8 dequeue_open_id(void); 
+static void get_zone_to_ID(UINT32 zone_number);
+static UINT8 set_zone_to_ID(UINT32 zone_number, UINT8 id);
 
 void nand_page_ptprogram_from_host_zns_write(UINT32 const bank, UINT32 const vblock, UINT32 const page_num, UINT32 const sect_offset, UINT32 const num_sectors, UINT32 const write_buffer_addr);
 void nand_page_ptread_to_host_zns_read(UINT32 const bank, UINT32 const vblock, UINT32 const page_num, UINT32 const sect_offset, UINT32 const num_sectors, UINT32 const read_buffer_addr);
@@ -365,8 +369,8 @@ void ftl_open(void)
     uart_printf("here3\n");
 	enable_irq();
     uart_printf("here4\n");
-	wp = 0; rp = 0;
-	open_zone = 0;	
+	wp = 0; rp = 0; wp_open = 0; rp_open = 0;
+	OPEN_ZONE = 0;	
 	search_bad_blk_zone();
     uart_printf("here5\n");
 	UINT32 zone_number = -1;
@@ -447,6 +451,11 @@ void zns_init(void)
 		}
 	}
 	
+	for(UINT8 i = 0; i < MAX_OPEN_ZONE; i++)
+	{
+		enqueue_open_id(i);
+	}
+	
 	/*
 	for(UINT32 i = 0; i< NBLK; i++)
 	{
@@ -506,14 +515,15 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
             if (zone_state == 0)
             {
                 //Q) max_open_zone reset에서는 안만짐??
-                //if (OPEN_ZONE == MAX_OPEN_ZONE) return -1;
+                if (OPEN_ZONE == MAX_OPEN_ZONE) return -1;
                 //Q) dequeue에서는 사용할 것이 없ㅇ면 리턴을 어케줌??
                 //if(FB[c_fcg][NBLK] == 0) return -1; 
 
                 UINT32 dequeue_fbg = dequeue_FBG();
+				UINT32 open_id = dequeue_open_id();
                 set_zone_to_FBG(c_zone, dequeue_fbg);
-
-                //OPEN_ZONE += 1;
+				set_zone_to_ID(c_zone, open_id);
+                OPEN_ZONE += 1;
                 set_zone_state(c_zone, 1);
             }
 
@@ -570,7 +580,10 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
             if (get_zone_wp(c_zone) == get_zone_slba(c_zone) + ZONE_SIZE)
             {
                 set_zone_state(c_zone, 2);
-                //OPEN_ZONE -= 1;
+				UINT8 open_id = get_zone_to_ID(c_zone);
+				set_zone_to_ID(c_zone, -1)
+				enqueue_open_id(open_id);
+                OPEN_ZONE -= 1;
             }
 
             if (c_sect == 0)
@@ -615,7 +628,7 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
                 zns_reset(c_zone);
                 set_zone_state(c_zone, 2);
                 //ZTF[c_zone] = TL_BITMAP[c_zone][DEG_ZONE * NSECT * NPAGE];
-                //OPEN_ZONE -= 1;
+                OPEN_ZONE -= 1;
             }
         }
         */
@@ -1301,7 +1314,7 @@ void zns_izc(UINT32 src_zone, UINT32 dest_zone, UINT32 copy_len, UINT32 *copy_li
 		zns_write(d_lba, NSECT, TL_INTERNAL_BUFFER_ADDR, 1);
 	}
 	zns_reset(get_zone_slba(src_zone));
-	open_zone++;
+	OPEN_ZONE++;
 }
 */
 
@@ -2103,11 +2116,35 @@ void enqueue_FBG(UINT32 block_num)
 UINT32 dequeue_FBG(void)
 {
 	rp = rp % NBLK;
-	UINT32 block_num = read_dram_32(FBQ_ADDR + wp * sizeof(UINT32));
+	UINT32 block_num = read_dram_32(FBQ_ADDR + rp * sizeof(UINT32));
+	rp++;
 	ASSERT(block_num < NBLK);
 	return block_num;
 }
 
+void enqueue_open_id(UINT8 open_zone_id)
+{
+	wp_open = wp_open % MAX_OPEN_ZONE;
+	write_dram_8(OPEN_ZONE_Q_ADDR + wp_open * sizeof(UINT8), open_zone_id);
+	wp_open++;
+}
+
+UINT8 dequeue_open_id(void)
+{
+	rp_open = rp_open % MAX_OPEN_ZONE;
+	UINT8 id = read_dram_8(OPEN_ZONE_Q_ADDR + rp_open * sizeof(UINT8), open_zone_id);
+	rp_open++;
+	return id;
+}
+
+UINT8 get_zone_to_ID(UINT32 zone_number)
+{
+	return read_dram_8(ZONE_TO_ID_ADDR + zone_number * sizeof(UINT8));
+}
+void set_zone_to_ID(UINT32 zone_number, UINT8 id)
+{
+	write_dram_8(ZONE_TO_ID_ADDR + zone_number * sizeof(UINT8), id);
+}
 // ZNS+
 /*
 UINT8 get_TL_bitmap(UINT32 zone_number, UINT32 page_offset)
