@@ -531,7 +531,7 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
             if (c_sect == NSECT - 1)
             {
                 if (swch == 0) {
-                    next_write_buf_id = (write_buffer_addr + 1) % NUM_WR_BUFFERS;
+                    next_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS;
 #if OPTION_FTL_TEST == 0
                     while (next_write_buf_id == GETREG(SATA_WBUF_PTR));	// wait if the read buffer is full (slow host)
 #endif
@@ -540,7 +540,7 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
 
             UINT32 data;
             if (swch == 0)
-                mem_set_dram(data, WR_BUF_PTR(_write_buffer_addr) + c_sect * BYTES_PER_SECTOR
+                mem_set_dram(data, WR_BUF_PTR(g_ftl_write_buf_id) + c_sect * BYTES_PER_SECTOR
                     , 1 * BYTES_PER_SECTOR);
             else
                 mem_set_dram(data, _write_buffer_addr + c_sect * BYTES_PER_SECTOR
@@ -556,16 +556,10 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
                 //이것을 낸드에 옮긴다 (nand_page_ptprogram머시기를 쓰면 자동으로 글로 간다.)
                 UINT32 vblk = get_zone_to_FBG(c_zone);
 
-                //write_dram_32(ZONE_BUFFER_ADDR + (zone_number * SECTORS_PER_PAGE + sector_offset) * sizeof(UINT32), data);
-                mem_copy(WR_BUF_PTR(g_ftl_write_buf_id),
-                    ZONE_BUFFER_ADDR + (open_id * SECTORS_PER_PAGE) * sizeof(UINT32),
-                    NSECT * BYTES_PER_SECTOR);
-
-                nand_page_ptprogram_from_host(c_bank,
-                    vblk,
-                    p_offset,
-                    0,
-                    NSECT);
+                if (swch == 0)
+                    nand_page_program(c_bank, vblk, p_offset, ZONE_BUFFER_ADDR + (open_id * SECTORS_PER_PAGE) * sizeof(UINT32));
+                else
+                    nand_page_program(c_bank, vblk, p_offset, _write_buffer_addr);
             }
 
             if (get_zone_wp(c_zone) == get_zone_slba(c_zone) + ZONE_SIZE)
@@ -627,7 +621,6 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
 
         i_sect++;
     }
-    g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS;
 }
 void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const read_buffer_addr, UINT32 const swch)
 {
@@ -661,7 +654,7 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
                 //g_ftl_read_buf_id = 이제 쓸 곳
                 if (swch == 0)
                 {
-                    next_read_buf_id = (_read_buffer_addr + 1) % NUM_RD_BUFFERS;
+                    next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
 #if OPTION_FTL_TEST == 0
                     while (next_read_buf_id == GETREG(SATA_RBUF_PTR));	// wait if the read buffer is full (slow host)
 #endif
@@ -670,7 +663,7 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
             //normal
             if (swch == 0)
             {
-                mem_set_dram(RD_BUF_PTR(_read_buffer_addr) + c_sect * BYTES_PER_SECTOR,
+                mem_set_dram(RD_BUF_PTR(g_ftl_read_buf_id) + c_sect * BYTES_PER_SECTOR,
                     0xFFFFFFFF, 1 * BYTES_PER_SECTOR);
                 flash_finish();
                 SETREG(BM_STACK_RDSET, next_read_buf_id);	// change bm_read_limit
@@ -686,7 +679,7 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
 
             if (c_sect == NSECT - 1)
                 if (swch == 0)
-                    _read_buffer_addr = next_read_buf_id;
+                    g_ftl_read_buf_id = next_read_buf_id;
 
             i_sect++;
             continue;
@@ -700,7 +693,7 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
                     //g_ftl_read_buf_id = 이제 쓸 곳
                     if (swch == 0)
                     {
-                        next_read_buf_id = (_read_buffer_addr + 1) % NUM_RD_BUFFERS;
+                        next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
 #if OPTION_FTL_TEST == 0
                         while (next_read_buf_id == GETREG(SATA_RBUF_PTR));	// wait if the read buffer is full (slow host)
 #endif
@@ -709,7 +702,7 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
                 //normal
                 if (swch == 0)
                 {
-                    mem_set_dram(RD_BUF_PTR(_read_buffer_addr) + c_sect * BYTES_PER_SECTOR,
+                    mem_set_dram(RD_BUF_PTR(g_ftl_read_buf_id) + c_sect * BYTES_PER_SECTOR,
                         0xFFFFFFFF, 1 * BYTES_PER_SECTOR);
                     flash_finish();
                     SETREG(BM_STACK_RDSET, next_read_buf_id);	// change bm_read_limit
@@ -725,7 +718,7 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
 
                 if (c_sect == NSECT - 1)
                     if (swch == 0)
-                        _read_buffer_addr = next_read_buf_id;
+                        g_ftl_read_buf_id = next_read_buf_id;
 
                 i_sect++;
                 continue;
@@ -740,7 +733,7 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
                 if (c_sect == NSECT - 1)
                 {
                     if (swch == 0) {
-                        next_read_buf_id = (_read_buffer_addr + 1) % NUM_RD_BUFFERS;
+                        next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
 #if OPTION_FTL_TEST == 0
                         while (next_read_buf_id == GETREG(SATA_RBUF_PTR));	// wait if the read buffer is full (slow host)
 #endif
@@ -748,7 +741,7 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
                 }
 
                 if (swch == 0) {
-                    mem_set_dram(RD_BUF_PTR(_read_buffer_addr) + c_sect * BYTES_PER_SECTOR,
+                    mem_set_dram(RD_BUF_PTR(g_ftl_read_buf_id) + c_sect * BYTES_PER_SECTOR,
                         data, 1 * BYTES_PER_SECTOR);
                     flash_finish();
                     SETREG(BM_STACK_RDSET, next_read_buf_id);	// change bm_read_limit
@@ -761,7 +754,7 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
 
                 if (c_sect == NSECT - 1)
                     if (swch == 0)
-                        _read_buffer_addr = next_read_buf_id;
+                        g_ftl_read_buf_id = next_read_buf_id;
             }
             //데이터가 버퍼에 없을때 즉, nand에서 읽어와야댐 문제점: nand_page_pthread는 sect단위가아니고 page단위로 하는 듯.
             else
@@ -779,25 +772,24 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
                 {
                     if (c_sect == NSECT - 1)
                     {
-                        next_read_buf_id = (_read_buffer_addr + 1) % NUM_RD_BUFFERS;
-#if OPTION_FTL_TEST == 0
+                        next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
+                        #if OPTION_FTL_TEST == 0
                         while (next_read_buf_id == GETREG(SATA_RBUF_PTR));	// wait if the read buffer is full (slow host)
-#endif
+                        #endif
                     }
-                    nand_page_ptread_to_host_noplus(c_bank,
-                        vblk,
-                        p_offset,
-                        (c_sect),
-                        1);
+                    nand_page_read(c_bank, vblk, p_offset, g_ftl_read_buf_id);
+
                     if (c_sect == NSECT - 1)
                         g_ftl_read_buf_id = next_read_buf_id;
                 }
 
                 else
                 {
-                    //save하기
+                    nand_page_read(c_bank, vblk, p_offset, _read_buffer_addr);
+
+                    /*
                     UINT32 save_data;
-                    mem_set_dram(save_data, WR_BUF_PTR(g_ftl_read_buf_id) + c_sect * BYTES_PER_SECTOR
+                    mem_set_dram(save_data, RD_BUF_PTR(g_ftl_read_buf_id) + c_sect * BYTES_PER_SECTOR
                         , 1 * BYTES_PER_SECTOR);
 
                     nand_page_ptread_to_host_noplus(c_bank,
@@ -807,14 +799,15 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
                         1);
 
                     UINT32 data;
-                    mem_set_dram(data, WR_BUF_PTR(g_ftl_read_buf_id) + c_sect * BYTES_PER_SECTOR
+                    mem_set_dram(data, RD_BUF_PTR(g_ftl_read_buf_id) + c_sect * BYTES_PER_SECTOR
                         , 1 * BYTES_PER_SECTOR);
-                    mem_set_dram(WR_BUF_PTR(g_ftl_read_buf_id) + c_sect * BYTES_PER_SECTOR, save_data
+                    mem_set_dram(RD_BUF_PTR(g_ftl_read_buf_id) + c_sect * BYTES_PER_SECTOR, save_data
                         , 1 * BYTES_PER_SECTOR);
 
                     //data를 내가 원하는 버퍼에 넣는다.
                     mem_set_dram(_read_buffer_addr + c_sect * BYTES_PER_SECTOR,
                         data, 1 * BYTES_PER_SECTOR);
+                    */
                 }
             }
         }
@@ -888,7 +881,6 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
         i_sect++;
         
     }
-    g_ftl_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
     return;
 }
 
