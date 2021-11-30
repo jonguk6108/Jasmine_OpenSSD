@@ -107,7 +107,7 @@ UINT32 				  g_ftl_write_buf_id;
 #define get_mapblk_vpn(bank, mapblk_lbn)      (g_misc_meta[bank].cur_mapblk_vpn[mapblk_lbn])
 #define set_mapblk_vpn(bank, mapblk_lbn, vpn) (g_misc_meta[bank].cur_mapblk_vpn[mapblk_lbn] = vpn)
 #define CHECK_LPAGE(lpn)              ASSERT((lpn) < NUM_LPAGES)
-#define CHECK_VPAGE(vpn)              ASSERT((vpn) < (VBLKS_PER_BANK * PAGES_PER_BLK))
+#define CHECK_VPAGE(vpn)              ASSERT((vpn) < (rand_write_blks * PAGES_PER_BLK))
 
 //----------------------------------
 // FTL internal function prototype
@@ -332,6 +332,9 @@ void ftl_open(void)
 	SETREG(FCONF_PAUSE, FIRQ_DATA_CORRUPT | FIRQ_BADBLK_L | FIRQ_BADBLK_H);
 
 	enable_irq();
+	
+	wp = 0; rp = 0;
+	open_zone = 0;	
 	search_bad_blk_zone();
 	
 	UINT32 zone_number = -1;
@@ -356,12 +359,13 @@ void ftl_open(void)
 }
 void search_bad_blk_zone(void)
 {
-	for(UINT32 i = 0; i < NUM_BANKS; i++)
+	for(UINT32 j = 0; j < VBLKS_PER_BANK; j++)
 	{
 		BOOL32 flag = TRUE;
-		for(UINT32 j = 0; j < VBLKS_PER_BANK; j++)
+		for(UINT32 i = 0; i < NUM_BANKS; i++)
 		{
-			if(is_bad_block(i, j))
+			UINT32 vcount = read_dram_16(VCOUNT_ADDR + ((i * VBLKS_PER_BANK) + j) * sizeof(UINT16));
+			if(vcount == VC_MAX)
 			{				
 				flag = FALSE;
 				break;
@@ -1135,7 +1139,7 @@ static UINT32 get_vpn(UINT32 const lpn)
 static void set_vpn(UINT32 const lpn, UINT32 const vpn)
 {
     CHECK_LPAGE(lpn);
-    ASSERT(vpn >= (META_BLKS_PER_BANK * PAGES_PER_BLK) && vpn < (VBLKS_PER_BANK * PAGES_PER_BLK));
+    ASSERT(vpn >= (META_BLKS_PER_BANK * PAGES_PER_BLK) && vpn < (rand_write_blks * PAGES_PER_BLK));
 
     write_dram_32(PAGE_MAP_ADDR + lpn * sizeof(UINT32), vpn);
 }
@@ -1145,9 +1149,9 @@ static UINT32 get_vcount(UINT32 const bank, UINT32 const vblock)
     UINT32 vcount;
 
     ASSERT(bank < NUM_BANKS);
-    ASSERT((vblock >= META_BLKS_PER_BANK) && (vblock < VBLKS_PER_BANK));
+    ASSERT((vblock >= META_BLKS_PER_BANK) && (vblock < rand_write_blks));
 
-    vcount = read_dram_16(VCOUNT_ADDR + (((bank * VBLKS_PER_BANK) + vblock) * sizeof(UINT16)));
+    vcount = read_dram_16(VCOUNT_ADDR + (((bank * rand_write_blks) + vblock) * sizeof(UINT16)));
     /*
     if (!(vcount < PAGES_PER_BLK) || (vcount == VC_MAX)) {
         uart_printf("vcount : %d", vcount);
@@ -1329,7 +1333,7 @@ static UINT32 get_vt_vblock(UINT32 const bank)
     // search the block which has mininum valid pages
 	vblock = mem_search_min_max(VCOUNT_ADDR + (bank * VBLKS_PER_BANK * sizeof(UINT16)),
                                 sizeof(UINT16),
-                                VBLKS_PER_BANK,
+                                rand_write_blks,
                                 MU_CMD_SEARCH_MIN_DRAM);
 
 
