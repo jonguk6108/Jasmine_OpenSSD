@@ -538,17 +538,19 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
                 }
             }
 
+            UINT8 open_id = get_zone_to_ID(c_zone);
+
             UINT32 data;
-            if (swch == 0)
-                mem_set_dram(data, WR_BUF_PTR(g_ftl_write_buf_id) + c_sect * BYTES_PER_SECTOR
-                    , 1 * BYTES_PER_SECTOR);
+            if (swch == 0) {
+                mem_copy(ZONE_BUFFER_ADDR + open_id * BYTES_PER_PAGE + c_sect * BYTES_PER_SECTOR, WR_BUF_PTR(g_ftl_write_buf_id) + c_sect * BYTES_PER_SECTOR, BYTES_PER_SECTOR);
+                uart_printf("write : copy to zone buffer, open_id %d, c_sect %d, addr : %x", open_id, c_sect, ZONE_BUFFER_ADDR + open_id * BYTES_PER_PAGE + c_sect * BYTES_PER_SECTOR);
+            }
+                //mem_set_dram(data, WR_BUF_PTR(g_ftl_write_buf_id) + c_sect * BYTES_PER_SECTOR, 1 * BYTES_PER_SECTOR);
             else
                 mem_set_dram(data, _write_buffer_addr + c_sect * BYTES_PER_SECTOR
                     , 1 * BYTES_PER_SECTOR);
 
-            UINT8 open_id = get_zone_to_ID(c_zone);
-            //우리가 이해한거 : open_id 위치의 존버퍼에 data를 c_sect위치에 적는다.
-            set_buffer_sector(open_id, c_sect, data);
+            //set_buffer_sector(open_id, c_sect, data);
             if (c_sect == NSECT - 1)
             {
                 //존 버퍼에 있는 데이터를 모두 nand에다가 write
@@ -744,8 +746,9 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
                 }
 
                 if (swch == 0) {
-                    mem_set_dram(RD_BUF_PTR(g_ftl_read_buf_id) + c_sect * BYTES_PER_SECTOR,
-                        data, 1 * BYTES_PER_SECTOR);
+                    mem_copy(RD_BUF_PTR(g_ftl_read_buf_id) + c_sect * BYTES_PER_SECTOR, ZONE_BUFFER_ADDR + open_id * BYTES_PER_PAGE + c_sect * BYTES_PER_SECTOR, BYTES_PER_SECTOR);
+                    uart_printf("read : copy to zone buffer, open_id %d, c_sect %d, addr : %x, rid : %d", open_id, c_sect, ZONE_BUFFER_ADDR + open_id * BYTES_PER_PAGE + c_sect * BYTES_PER_SECTOR, g_ftl_read_buf_id);
+                    //mem_set_dram(RD_BUF_PTR(g_ftl_read_buf_id) + c_sect * BYTES_PER_SECTOR,data, 1 * BYTES_PER_SECTOR);
                     flash_finish();
                     SETREG(BM_STACK_RDSET, next_read_buf_id);	// change bm_read_limit
                     SETREG(BM_STACK_RESET, 0x02);				// change bm_read_limit
@@ -883,7 +886,7 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
 
         i_sect++;
         if (i_sect == num_sectors && c_sect != NSECT - 1 && swch == 0)
-            g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS;
+            g_ftl_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
     }
     return;
 }
