@@ -620,31 +620,26 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
 
         if (zone_state == 0)
         {
-            //data[i_sect] = -1;
-             //13주차 실습 18분 다시보기
             /*---------read_commnad-----------*/
             //첫 sect가 쓰이거나, 한페이지를 다 쓸경우 +1
             //c_sect != 0 , i_sect == 0 일때도 다음 id에 적는다 왜냐면, offset 틀에 때문에????????
-            if (c_sect == 0)
+            //c_sect == NSECT -1 ->  다음 id를 구하고  -> 현재 id에 값을 쓰고 다음 id로 넘겨준다.
+            if (c_sect == NSECT-1)
             {
-                //buf에서 한번 쓰고있으면 SATA_RBUF가 움직이면 안댐
-                //생각해보기: SATA가 움직일수 있다?
                 //g_ftl_read_buf_id = 이제 쓸 곳
-
                 if (swch == 0)
                     next_read_buf_id = (_read_buffer_addr + 1) % NUM_RD_BUFFERS;
                 else
                     next_read_buf_id += BYTES_PER_PAGE;
-
-
                 if (swch == 0) {
-#if OPTION_FTL_TEST == 0
+                    #if OPTION_FTL_TEST == 0
                     while (next_read_buf_id == GETREG(SATA_RBUF_PTR));	// wait if the read buffer is full (slow host)
-#endif
+                    #endif
                 }
             }
-
-            if (swch == 0) {
+            //normal
+            if (swch == 0) 
+            {
                 mem_set_dram(RD_BUF_PTR(_read_buffer_addr) + c_sect * BYTES_PER_SECTOR,
                     0xFFFFFFFF, 1 * BYTES_PER_SECTOR);
                 flash_finish();
@@ -652,11 +647,13 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
                 SETREG(BM_STACK_RESET, 0x02);				// change bm_read_limit
             }
 
-            else {
+            //izc,tl
+            else 
+            {
                 mem_set_dram(_read_buffer_addr + c_sect * BYTES_PER_SECTOR,
                     0xFFFFFFFF, 1 * BYTES_PER_SECTOR);
             }
-            if (c_sect == 0)
+            if (c_sect == NSECT - 1)
                 _read_buffer_addr = next_read_buf_id;
             /*----------read--------------*/
 
@@ -670,7 +667,7 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
                 //data[i_sect] = -1;
 
                 /*---------read_commnad-----------*/
-                if (c_sect == 0)
+                if (c_sect == NSECT - 1)
                 {
                     if (swch == 0)
                         next_read_buf_id = (_read_buffer_addr + 1) % NUM_RD_BUFFERS;
@@ -697,7 +694,7 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
                         0xFFFFFFFF, 1 * BYTES_PER_SECTOR);
                 }
 
-                if (c_sect == 0)
+                if (c_sect == NSECT - 1)
                     _read_buffer_addr = next_read_buf_id;
                 /*----------read--------------*/
 
@@ -712,7 +709,7 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
                 UINT32 data = get_buffer_sector(c_zone, c_sect);
 
                 /*---------read_commnad-----------*/
-                if (c_sect == 0)
+                if (c_sect == NSECT - 1)
                 {
 
                     if (swch == 0)
@@ -722,9 +719,9 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
 
                     if (swch == 0)
                     {
-#if OPTION_FTL_TEST == 0
+                        #if OPTION_FTL_TEST == 0
                         while (next_read_buf_id == GETREG(SATA_RBUF_PTR));	// wait if the read buffer is full (slow host)
-#endif
+                        #endif
                     }
                 }
 
@@ -740,7 +737,7 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
                         data, 1 * BYTES_PER_SECTOR);
                 }
 
-                if (c_sect == 0)
+                if (c_sect == NSECT - 1)
                     _read_buffer_addr = next_read_buf_id;
                 /*----------read--------------*/
 
@@ -749,7 +746,7 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
             else
             {
                 /*------------normal_nandread-------------*/
-                //c_sect ==0 이고, 처음 sect읽을경우 아닐때 nandread
+
                 UINT32 vblk = get_zone_to_FBG(c_zone);
 
                 if (swch == 0)
@@ -784,9 +781,9 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
                     if (c_sect == 0)
                     {
                         next_read_buf_id = (read_buffer_addr + 1) % NUM_RD_BUFFERS;
-#if OPTION_FTL_TEST == 0
+                        #if OPTION_FTL_TEST == 0
                         while (next_read_buf_id == GETREG(SATA_RBUF_PTR));	// wait if the read buffer is full (slow host)
-#endif
+                        #endif
                     }
                     mem_set_dram(RD_BUF_PTR(read_buffer_addr) + c_sect * BYTES_PER_SECTOR,
                         0xFFFFFFFF, 1 * BYTES_PER_SECTOR);
@@ -1224,7 +1221,7 @@ void zns_get_desc(UINT32 c_zone, UINT32 nzone)
 	{
 		ASSERT(i + c_zone < NZONE);
 
-		uart_printf("ZONE %d descriptor", c_zone);
+		uart_printf("ZONE %d descriptor", c_zone + i);
         /*
         if(get_zone_state(i + c_zone) == 3)
         {
