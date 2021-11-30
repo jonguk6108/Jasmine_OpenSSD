@@ -365,6 +365,20 @@ void ftl_read(UINT32 const lba, UINT32 const num_sectors)
 		return;
 	}
 
+    else if (lba == 7 && num_sectors == 13) {
+
+        while (next_read_buf_id == GETREG(SATA_RBUF_PTR));
+        g_ftl_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
+        flash_finish();
+
+        SETREG(BM_STACK_RDSET, g_ftl_read_buf_id);
+        SETREG(BM_STACK_RESET, 0x01);
+
+        //print stats
+
+        return;
+    }
+
     //seq_zone
     if (lba >= 6*ZONE_SIZE) 
     {
@@ -457,7 +471,7 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors)
         if (zone_state == 0)
         {
             //data[i_sect] = -1;
-
+             //13주차 실습 18분 다시보기
             /*---------read_commnad-----------*/
             //첫 sect가 쓰이거나, 한페이지를 다 쓸경우 +1
             if (c_sect == 0 || i_sect == 0)
@@ -590,7 +604,7 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors)
                     cnt_for_nandread++;
                     if (c_sect == 0 && i_sect != 0)
                     {
-                        UINT32 vblk = get_TL_bitmap(c_zone, DEG_ZONE * NSECT * NPAGE);
+                        UINT32 vblk = get_TL_num(c_zone);
                         nand_page_ptread_to_host(c_bank,
                             vblk,
                             p_offset,
@@ -625,6 +639,43 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors)
     }
     return;
 }
+
+void zns_read_internal(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const* one_data)
+{
+    UINT32 cnt_for_nandread = 0;
+    UINT32 i_sect = 0;
+    UINT32 next_read_buf_id;
+    while (i_sect < num_sectors)
+    {
+        /*------------------------------------------*/
+        UINT32 c_lba = start_lba + i_sect;
+        UINT32 lba = start_lba + i_sect;
+        UINT32 c_sect = lba % NSECT;
+        lba = lba / NSECT;
+        UINT32 b_offset = lba % DEG_ZONE;
+        lba = lba / DEG_ZONE;
+        UINT32 p_offset = lba % NPAGE;
+        lba = lba / NPAGE;
+        UINT32 c_fcg = lba % NUM_FCG;
+        /*------------------------------------------*/
+
+        UINT32 c_zone = lba;
+        if (c_zone >= NZONE) return;
+        UINT32 c_bank = c_fcg * DEG_ZONE + b_offset;
+
+        /*------zone_state,wp,slba 읽어오기---------*/
+        UINT8 zone_state = get_zone_state(c_zone);
+        UINT32 zone_wp = get_zone_wp(c_zone);
+        UINT32 zone_slba = get_zone_slba(c_zone);
+        /*------------------------------------------*/
+
+        one_data[0] = get_buffer_sector(c_zone, c_sect);
+
+        i_sect++;
+    }
+    return;
+}
+
 
 void ftl_write(UINT32 const lba, UINT32 const num_sectors)
 {
