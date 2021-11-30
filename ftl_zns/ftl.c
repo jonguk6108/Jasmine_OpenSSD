@@ -131,11 +131,10 @@ static UINT32 get_vpn(UINT32 const lpn);
 static UINT32 get_vt_vblock(UINT32 const bank);
 static UINT32 assign_new_write_vpn(UINT32 const bank);
 static void zns_read(UINT32 const start_lba, UINT32 const num_sectors);
-static void zns_write(UINT32 const start_lba, UINT32 const num_sectors);
+static int zns_write(UINT32 const start_lba, UINT32 const num_sectors);
 static void zns_init(void);
 static void zns_reset(UINT32 c_zone);
-static void zns_get_desc(UINT32 c_zone, UINT32 nzone, struct zone_desc *descs);
-static void zns_izc(UINT32 src_zone, UINT32 dest_zone, UINT32 copy_len, UINT32 *copy_list);
+static void zns_get_desc(UINT32 c_zone, UINT32 nzone);
 static UINT8 get_zone_state(UINT32 zone_number);
 static void set_zone_state(UINT32 zone_number, UINT8 state);
 static UINT32 get_zone_wp(UINT32 zone_number);
@@ -145,17 +144,19 @@ static void set_zone_slba(UINT32 zone_number, UINT32 slba);
 static UINT32 get_buffer_sector(UINT32 zone_number, UINT32 sector_offset);
 static void set_buffer_sector(UINT32 zone_number, UINT32 sector_offset, UINT32 data);
 static UINT32 get_zone_to_FBG(UINT32 zone_number);
-static void set_zone_to_FBG(zone_number, UINT32 FBG);
+static void set_zone_to_FBG(UINT32 zone_number, UINT32 FBG);
 static void enqueue_FBG(UINT32 block_num);
 static UINT32 dequeue_FBG(void);
+/*
+static void zns_izc(UINT32 src_zone, UINT32 dest_zone, UINT32 copy_len, UINT32 *copy_list);
 static UINT8 get_TL_bitmap(UINT32 zone_number, UINT32 page_offset);
 static void set_TL_bitmap(UINT32 zone_number, UINT32 page_offset, UINT8 data);
 static UINT32 get_TL_wp(UINT32 zone_number);
 static void set_TL_wp(UINT32 zone_number, UINT32 wp);
 static UINT32 get_TL_buffer(UINT32 zone_number, UINT32 sector_offset);
-static set_TL_buffer(zone_number, sector_offset, UINT32 data);
+static void set_TL_buffer(UINT32 zone_number,UINT32 sector_offset, UINT32 data);
 static UINT32 get_TL_num(UINT32 zone_number);
-static void set_TL_num(UINT32 zone_number, UINT32 num);
+static void set_TL_num(UINT32 zone_number, UINT32 num);*/
 
 
 static void sanity_check(void)
@@ -430,20 +431,6 @@ void ftl_read(UINT32 const lba, UINT32 const num_sectors)
 		return;
 	}
 
-    else if (lba == 7 && num_sectors == 13) {
-
-        while (next_read_buf_id == GETREG(SATA_RBUF_PTR));
-        g_ftl_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
-        flash_finish();
-
-        SETREG(BM_STACK_RDSET, g_ftl_read_buf_id);
-        SETREG(BM_STACK_RESET, 0x01);
-
-        //print stats
-
-        return;
-    }
-
     //seq_zone
     if (lba >= 6*ZONE_SIZE) 
     {
@@ -634,7 +621,7 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors)
                 /*------------------------------*/
             }
         }
-        else if (zone_state == 3)
+        /*else if (zone_state == 3)
         {
             UINT32 i_tl  =  c_lba - c_zone * DEG_ZONE * NSECT * NPAGE;
             UINT32 TL_WP =  get_TL_wp(c_zone);
@@ -644,7 +631,6 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors)
                 {
                     UINT32 data = get_TL_buffer(c_zone, c_sect);
 
-                    /*------------------*/
                     if (c_sect == 0 || i_sect == 0)
                     {
                         next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
@@ -660,12 +646,11 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors)
                     SETREG(BM_STACK_RESET, 0x02);				// change bm_read_limit
                     if (c_sect == 0 || i_sect == 0)
                         g_ftl_read_buf_id = next_read_buf_id;
-                    /*------------------*/
 
                 }
                 else
                 {
-                    /*---------TL_nandread-----------------*/
+                    //TL_nandread
                     cnt_for_nandread++;
                     if (c_sect == 0 && i_sect != 0)
                     {
@@ -678,12 +663,11 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors)
 
                         cnt_for_nandread = 0;
                     }
-                    /*-----------------------------------*/
                 }
             }
             else 
             {
-                /*----------normal_nandread-----------*/
+                //normal_nandread
                 cnt_for_nandread++;
                 if (c_sect == 0 && i_sect != 0)
                 {
@@ -696,45 +680,8 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors)
 
                     cnt_for_nandread = 0;
                 }
-                /*---------------------------------*/
             }
-        }
-
-        i_sect++;
-    }
-    return;
-}
-
-void zns_read_internal(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const* one_data)
-{
-    UINT32 cnt_for_nandread = 0;
-    UINT32 i_sect = 0;
-    UINT32 next_read_buf_id;
-    while (i_sect < num_sectors)
-    {
-        /*------------------------------------------*/
-        UINT32 c_lba = start_lba + i_sect;
-        UINT32 lba = start_lba + i_sect;
-        UINT32 c_sect = lba % NSECT;
-        lba = lba / NSECT;
-        UINT32 b_offset = lba % DEG_ZONE;
-        lba = lba / DEG_ZONE;
-        UINT32 p_offset = lba % NPAGE;
-        lba = lba / NPAGE;
-        UINT32 c_fcg = lba % NUM_FCG;
-        /*------------------------------------------*/
-
-        UINT32 c_zone = lba;
-        if (c_zone >= NZONE) return;
-        UINT32 c_bank = c_fcg * DEG_ZONE + b_offset;
-
-        /*------zone_state,wp,slba 읽어오기---------*/
-        UINT8 zone_state = get_zone_state(c_zone);
-        UINT32 zone_wp = get_zone_wp(c_zone);
-        UINT32 zone_slba = get_zone_slba(c_zone);
-        /*------------------------------------------*/
-
-        one_data[0] = get_buffer_sector(c_zone, c_sect);
+        }*/
 
         i_sect++;
     }
@@ -936,7 +883,7 @@ static void write_page(UINT32 const lpn, UINT32 const sect_offset, UINT32 const 
     set_vcount(bank, vblock, get_vcount(bank, vblock) + 1);
 }
 
-void zns_write(UINT32 const start_lba, UINT32 const num_sectors) 
+int zns_write(UINT32 const start_lba, UINT32 const num_sectors) 
 {
     UINT32 cnt_for_nandwrite = 0;
     UINT32 i_sect = 0;
@@ -1029,7 +976,7 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors)
         else if (zone_state == 2)
             return -1;
 
-        else if (zone_state == 3)
+        /*else if (zone_state == 3)
         {
             UINT32 i_tl = p_offset * DEG_ZONE * NSECT + b_offset * NSECT + c_sect;
             //if(TL_BITMAP[c_zone][tl_num] == 1)
@@ -1041,7 +988,7 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors)
                 //return -1;
             set_TL_wp(c_zone, TL_WP + 1);
 
-            /*-------write to buffer----------*/
+            //write to buffer
 
             // g_ftl_write 저거 옮기기?
             if (c_sect == 0 || i_sect == 0)
@@ -1067,10 +1014,11 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors)
                 //ZTF[c_zone] = TL_BITMAP[c_zone][DEG_ZONE * NSECT * NPAGE];
                 //OPEN_ZONE -= 1;
             }
-        }
+        }*/
 
         i_sect++;
     }
+    return 0;
 }
 
 void zns_reset(UINT32 c_zone)
@@ -1090,13 +1038,13 @@ void zns_reset(UINT32 c_zone)
 
 }
 
-void zns_get_desc(UINT32 c_zone, UINT32 nzone, struct zone_desc *descs)
+void zns_get_desc(UINT32 c_zone, UINT32 nzone)
 {
-	for(UINT i = 0; i < nzone; i++) 
+	for(UINT32 i = 0; i < nzone; i++) 
 	{
 		ASSERT(i + c_zone < NZONE);
 
-		if(get_zone_state(i + c_zone) == 3)
+		/*if(get_zone_state(i + c_zone) == 3)
 		{
 			descs[i].state = 3;
 			descs[i].slba = get_zone_slba(i + c_zone);
@@ -1105,7 +1053,9 @@ void zns_get_desc(UINT32 c_zone, UINT32 nzone, struct zone_desc *descs)
 		}
 		descs[i].state = get_zone_state(i + c_zone);
 		descs[i].slba = get_zone_slba(i + c_zone);
-		descs[i].wp = get_zone_wp(i + c_zone);
+		descs[i].wp = get_zone_wp(i + c_zone);*/
+        
+        //todo : uart_print desc
 	}
   return;
 }
@@ -1907,7 +1857,7 @@ UINT32 get_zone_to_FBG(UINT32 zone_number)
 	
 	return zone_FBG;
 }
-void set_zone_to_FBG(zone_number, UINT32 FBG)
+void set_zone_to_FBG(UINT32 zone_number, UINT32 FBG)
 {
 	ASSERT(zone_number < NBLK);
 	ASSERT(zone_FBG < NBLK);

@@ -1,3 +1,6 @@
+///izc 수정함 아직 원복에 복붙 안함
+
+
 void zns_init(void)
 {
 	for(UINT32 i = 0; i < NZONE; i++)
@@ -83,11 +86,12 @@ void zns_izc(UINT32 src_zone, UINT32 dest_zone, UINT32 copy_len, UINT32 *copy_li
 	for(UINT32 i = 0; i < copy_len; i++)
 	{
 		UINT32 s_lba = get_zone_slba(src_zone) + copy_list[i] * NSECT;
-		zns_read(s_lba, NSECT, data);
+		zns_read(s_lba, NSECT, TL_INTERNAL_BUFFER_ADDR);
 		UINT32 d_lba = get_zone_slba(dest_zone) + i * NSECT;
-		zns_write(d_lba, NSECT, data);
+		zns_write(d_lba, NSECT, TL_INTERNAL_BUFFER_ADDR);
 	}
 	zns_reset(get_zone_slba(src_zone));
+	open_zone++;
 }
 
 void zns_write(UINT32 const start_lba, UINT32 const num_sectors) 
