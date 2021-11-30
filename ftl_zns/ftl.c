@@ -331,6 +331,7 @@ void ftl_open(void)
 	SETREG(FCONF_PAUSE, FIRQ_DATA_CORRUPT | FIRQ_BADBLK_L | FIRQ_BADBLK_H);
 
 	enable_irq();
+	zns_init();
 
     /****FTL 세팅값 ******/
     uart_printf("\n----------------------");
@@ -1044,17 +1045,29 @@ void zns_get_desc(UINT32 c_zone, UINT32 nzone)
 	{
 		ASSERT(i + c_zone < NZONE);
 
-		/*if(get_zone_state(i + c_zone) == 3)
+		uart_printf("ZONE %d descriptor", c_zone);
+		if(get_zone_state(i + c_zone) == 3)
 		{
-			descs[i].state = 3;
-			descs[i].slba = get_zone_slba(i + c_zone);
-			descs[i].wp = get_TL_wp(i + c_zone) + get_zone_slba(i + c_zone);
+			uart_printf("State : TL_OPEN");
+			uart_printf("Slba : %d", get_zone_slba(i + c_zone));
+			uart_printf("Wp : %d", get_TL_wp(i + c_zone) + get_zone_slba(i + c_zone));
+			
+			//descs[i].state = 3;
+			//descs[i].slba = get_zone_slba(i + c_zone);
+			//descs[i].wp = get_TL_wp(i + c_zone) + get_zone_slba(i + c_zone);
 			continue;
 		}
-		descs[i].state = get_zone_state(i + c_zone);
-		descs[i].slba = get_zone_slba(i + c_zone);
-		descs[i].wp = get_zone_wp(i + c_zone);*/
-        
+		//descs[i].state = get_zone_state(i + c_zone);
+		//descs[i].slba = get_zone_slba(i + c_zone);
+		//descs[i].wp = get_zone_wp(i + c_zone);
+        if(get_zone_state(i + c_zone) == 0) uart_printf("State : EMPTY");
+		else if(get_zone_state(i + c_zone) == 1) uart_printf("State : OPEN");
+		else if(get_zone_state(i + c_zone) == 2) uart_printf("State : FULL");
+		
+		uart_printf("Slba : %d", get_zone_slba(i + c_zone));
+		uart_printf("Wp : %d", get_zone_slba(i + c_zone));
+		
+		
         //todo : uart_print desc
 	}
   return;
@@ -1070,9 +1083,9 @@ void zns_izc(UINT32 src_zone, UINT32 dest_zone, UINT32 copy_len, UINT32 *copy_li
 	for(UINT32 i = 0; i < copy_len; i++)
 	{
 		UINT32 s_lba = get_zone_slba(src_zone) + copy_list[i] * NSECT;
-		zns_read(s_lba, NSECT, data);
+		zns_read(s_lba, NSECT, TL_INTERNAL_BUFFER_ADDR);
 		UINT32 d_lba = get_zone_slba(dest_zone) + i * NSECT;
-		zns_write(d_lba, NSECT, data);
+		zns_write(d_lba, NSECT, TL_INTERNAL_BUFFER_ADDR);
 	}
 	zns_reset(get_zone_slba(src_zone));
 	open_zone++;

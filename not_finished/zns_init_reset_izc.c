@@ -63,7 +63,7 @@ void zns_get_desc(UINT32 c_zone, UINT32 nzone, struct zone_desc *descs)
 		ASSERT(i + c_zone < NZONE);
 
 		if(get_zone_state(i + c_zone) == 3)
-		{
+		{			
 			descs[i].state = 3;
 			descs[i].slba = get_zone_slba(i + c_zone);
 			descs[i].wp = get_TL_wp(i + c_zone) + get_zone_slba(i + c_zone);
