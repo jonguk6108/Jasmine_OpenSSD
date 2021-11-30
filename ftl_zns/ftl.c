@@ -176,7 +176,6 @@ static void sanity_check(void)
     
     uart_printf("DRAM_BASE: 0x%x / %u",DRAM_BASE,DRAM_BASE);
     uart_printf("COPY_BUF_ADDR: 0x%x / %u", COPY_BUF_ADDR, COPY_BUF_ADDR);
-    uart_printf("DRAM_TOP : 0x%x / %u", DRAM_TOP, DRAM_TOP);
     uart_printf("DRAM_SIZE: 0x%x / %u", DRAM_SIZE, DRAM_SIZE);
     uart_printf("OTHE_SIZE: 0x%x / %u", DRAM_BYTES_OTHER, DRAM_BYTES_OTHER);
     uart_printf("diff SIZE: 0x%x / %u", DRAM_SIZE - DRAM_BYTES_OTHER, DRAM_SIZE - DRAM_BYTES_OTHER);
@@ -580,7 +579,7 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
 
             if (c_sect == NSECT - 1)
                 if (swch == 0)
-                    _write_buffer_addr = next_write_buf_id;
+                    g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS;
         }
 
         ASSERT(zone_state != 2);
@@ -628,6 +627,7 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
 
         i_sect++;
     }
+    g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS;
 }
 void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const read_buffer_addr, UINT32 const swch)
 {
@@ -790,7 +790,7 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
                         (c_sect),
                         1);
                     if (c_sect == NSECT - 1)
-                        _read_buffer_addr = next_read_buf_id;
+                        g_ftl_read_buf_id = next_read_buf_id;
                 }
 
                 else
@@ -886,7 +886,9 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
 
 
         i_sect++;
+        
     }
+    g_ftl_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
     return;
 }
 
@@ -1265,7 +1267,7 @@ void zns_get_desc(UINT32 c_zone, UINT32 nzone)
 		else if(get_zone_state(i + c_zone) == 2) uart_printf("State : FULL");
 		
 		uart_printf("Slba : %d", get_zone_slba(i + c_zone));
-		uart_printf("Wp : %d", get_zone_slba(i + c_zone));
+		uart_printf("Wp : %d", get_zone_wp(i + c_zone));
 		
 		
         //todo : uart_print desc
