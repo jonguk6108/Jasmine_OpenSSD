@@ -2207,29 +2207,4 @@ void set_TL_num(UINT32 zone_number, UINT32 num)
 	ASSERT(zone_number < NBLK);
 	write_dram_32(TL_NUM_ADDR + zone_number * sizeof(UINT32), num);
 }
-void enqueue_tlopen_id(UINT8 tlopen_zone_id)
-{
-	wp_tlopen = wp_tlopen % MAX_OPEN_ZONE;
-	write_dram_8(TLOPEN_ZONE_Q_ADDR + wp_tlopen * sizeof(UINT8), tlopen_zone_id);
-	wp_tlopen++;
-}
-
-UINT8 dequeue_tlopen_id(void)
-{
-	rp_tlopen = rp_tlopen % MAX_OPEN_ZONE;
-	UINT8 id = read_dram_8(TLOPEN_ZONE_Q_ADDR + rp_tlopen * sizeof(UINT8));
-	rp_tlopen++;
-	return id;
-}
-
-UINT8 get_zone_to_TL_ID(UINT32 zone_number)
-{
-	return read_dram_8(ZONE_TO_TL_ID_ADDR + zone_number * sizeof(UINT8));
-}
-void set_zone_to_TL_ID(UINT32 zone_number, UINT8 id)
-{
-	write_dram_8(ZONE_TO_TL_ID_ADDR + zone_number * sizeof(UINT8), id);
-}
-
-
 */
