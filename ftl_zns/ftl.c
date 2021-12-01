@@ -148,7 +148,7 @@ static void set_zone_slba(UINT32 zone_number, UINT32 slba);
 static UINT32 get_buffer_sector(UINT32 zone_number, UINT32 sector_offset);
 static void set_buffer_sector(UINT32 zone_number, UINT32 sector_offset, UINT32 data);
 static UINT32 get_zone_to_FBG(UINT32 zone_number);
-static void set_zone_to_FBG(UINT32 zone_number, UINT32 FBG);
+static void set_zone_to_FBG(UINT32 zone_number, int FBG);
 static void enqueue_FBG(UINT32 block_num);
 static UINT32 dequeue_FBG(void);
 static void zns_reset(UINT32 c_zone);
@@ -1551,7 +1551,7 @@ static UINT32 get_vcount(UINT32 const bank, UINT32 const vblock)
     ASSERT(bank < NUM_BANKS);
     ASSERT((vblock >= META_BLKS_PER_BANK) && (vblock < rand_write_blks));
 
-    vcount = read_dram_16(VCOUNT_ADDR + (((bank * rand_write_blks) + vblock) * sizeof(UINT16)));
+    vcount = read_dram_16(VCOUNT_ADDR + (((bank * VBLKS_PER_BANK) + vblock) * sizeof(UINT16)));
     /*
     if (!(vcount < PAGES_PER_BLK) || (vcount == VC_MAX)) {
         uart_printf("vcount : %d", vcount);
@@ -2321,7 +2321,7 @@ UINT32 get_zone_to_FBG(UINT32 zone_number)
 	
 	return zone_FBG;
 }
-void set_zone_to_FBG(UINT32 zone_number, UINT32 FBG)
+void set_zone_to_FBG(UINT32 zone_number, int FBG)
 {
 	ASSERT(zone_number < NBLK);
 	ASSERT(FBG < NBLK);
