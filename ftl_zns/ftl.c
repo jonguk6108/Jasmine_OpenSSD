@@ -2331,46 +2331,31 @@ void set_zone_to_ID(UINT32 zone_number, UINT8 id)
 }
 // ZNS+
 /*
-UINT8 get_TL_bitmap(UINT32 zone_number, UINT32 page_offset)
+UINT8 get_TL_bitmap(UINT32 open_id, UINT32 page_offset)
 {
-	ASSERT(zone_number < NBLK);
+	ASSERT(open_id < MAX_OPEN_ZONE);
 	ASSERT(page_offset < NPAGE * DEG_ZONE);
-	UINT8 data = read_dram_8(TL_BITMAP_ADDR + (zone_number * (NPAGE * DEG_ZONE) + page_offset)*sizeof(UINT8));
+	UINT8 data = read_dram_8(TL_BITMAP_ADDR + (open_id * (NPAGE * DEG_ZONE) + page_offset)*sizeof(UINT8));
 	ASSERT(data == 1 || data == 0);
 	return data;
 }
-void set_TL_bitmap(UINT32 zone_number, UINT32 page_offset,  UINT8 data)
+void set_TL_bitmap(UINT32 open_id, UINT32 page_offset,  UINT8 data)
 {
-	ASSERT(zone_number < NBLK);
+	ASSERT(open_id < MAX_OPEN_ZONE);
 	ASSERT(page_offset < NPAGE * DEG_ZONE);
 	ASSERT(data == 1 || data == 0);
-	write_dram_8(TL_BITMAP_ADDR + zone_number * (NPAGE * DEG_ZONE) + page_offset, data);
+	write_dram_8(TL_BITMAP_ADDR + open_id * (NPAGE * DEG_ZONE) + page_offset, data);
 }
 UINT32 get_TL_wp(UINT32 zone_number)
 {
 	ASSERT(zone_number < NBLK);
 	UINT32 wp = read_dram_32(TL_WP_ADDR + zone_number*sizeof(UINT32));
-	ASSERT(wp >= get_zone_slba(zone_number) && wp < get_zone_slba(zone_number) + ZONE_SIZE);
 	return wp;
 }
 void set_TL_wp(UINT32 zone_number, UINT32 wp)
 {
 	ASSERT(zone_number < NBLK);
-	ASSERT(wp >= get_zone_slba(zone_number) && wp < get_zone_slba(zone_number) + ZONE_SIZE);
 	write_dram_32(TL_WP_ADDR + zone_number*sizeof(UINT32), wp);
-}
-UINT32 get_TL_buffer(UINT32 zone_number, UINT32 sector_offset)
-{
-	ASSERT(zone_number < NBLK);
-	ASSERT(sector_offset < NSECT);
-	UINT32 data = read_dram_32(TL_BUFFER_ADDR + (zone_number * NSECT + sector_offset) * sizeof(UINT32));
-	return data;
-}
-set_TL_buffer(zone_number, sector_offset, UINT32 data)
-{
-	ASSERT(zone_number < NBLK);
-	ASSERT(sector_offset < NSECT);
-	write_dram_32(TL_BUFFER_ADDR + (zone_number * NSECT + sector_offset) * sizeof(UINT32), data);
 }
 UINT32 get_TL_num(UINT32 zone_number)
 {
