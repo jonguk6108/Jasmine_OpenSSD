@@ -489,9 +489,11 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
     UINT32 i_sect = 0;
     UINT32 _write_buffer_addr = write_buffer_addr;
 
+    uart_printf("1");
+
     while (i_sect < num_sectors)
     {
-
+        uart_printf("isect : %d\n", i_sect);
         UINT32 c_lba = start_lba + i_sect;
         UINT32 lba = start_lba + i_sect;
         UINT32 c_sect = lba % NSECT;
@@ -515,6 +517,7 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
             ASSERT(zone_wp > c_lba);
             if (zone_state == 0)
             {
+                uart_printf("open zone");
                 //Q) max_open_zone reset에서는 안만짐??
                 if (OPEN_ZONE == MAX_OPEN_ZONE) return;
                 //Q) dequeue에서는 사용할 것이 없ㅇ면 리턴을 어케줌??
@@ -531,9 +534,11 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
             set_zone_wp(c_zone, get_zone_wp(c_zone) + 1);
             if (c_sect == NSECT - 1)
             {
+                uart_printf("while() start");
                  #if OPTION_FTL_TEST == 0
                  while ( ((g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS) == GETREG(SATA_WBUF_PTR));	// wait if the read buffer is full (slow host)
                  #endif
+                 uart_printf("while() end");
             }
 
             UINT8 open_id = get_zone_to_ID(c_zone);
@@ -542,7 +547,7 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
             mem_copy(ZONE_BUFFER_ADDR + open_id * BYTES_PER_PAGE + c_sect * BYTES_PER_SECTOR
                 ,WR_BUF_PTR(g_ftl_write_buf_id) + c_sect * BYTES_PER_SECTOR, BYTES_PER_SECTOR);
             //uart_printf("write : copy to zone buffer, open_id %d, c_sect %d, addr : %x", open_id, c_sect, ZONE_BUFFER_ADDR + open_id * BYTES_PER_PAGE + c_sect * BYTES_PER_SECTOR);
-            data = read_dram_32(ZONE_BUFFER_ADDR + open_id * BYTES_PER_PAGE + c_sect * BYTES_PER_SECTOR);
+            //data = read_dram_32(ZONE_BUFFER_ADDR + open_id * BYTES_PER_PAGE + c_sect * BYTES_PER_SECTOR);
             //uart_printf("%c", data);
                 //mem_set_dram(data, WR_BUF_PTR(g_ftl_write_buf_id) + c_sect * BYTES_PER_SECTOR, 1 * BYTES_PER_SECTOR);
 
@@ -558,6 +563,7 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
             }
             if (get_zone_wp(c_zone) == get_zone_slba(c_zone) + ZONE_SIZE)
             {
+                uart_printf("zone close");
                 set_zone_state(c_zone, 2);
                 UINT8 open_id = get_zone_to_ID(c_zone);
                 set_zone_to_ID(c_zone, -1);
@@ -566,10 +572,12 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
             }
             if (c_sect == NSECT - 1) 
             {
+                uart_printf("2");
                 flash_finish();
                 SETREG(BM_STACK_WRSET, (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS );	// change bm_read_limit
                 SETREG(BM_STACK_RESET, 0x01);				// change bm_read_limit
                 g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS;
+                uart_printf("3");
             }
         }
 
@@ -619,10 +627,12 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
         i_sect++;
         if (i_sect == num_sectors && c_sect != NSECT - 1) 
         {
+            uart_printf("4");
             flash_finish();
             SETREG(BM_STACK_WRSET, (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS );	// change bm_read_limit
             SETREG(BM_STACK_RESET, 0x01);				// change bm_read_limit
             g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS;
+            uart_printf("5");
         }
            
     }
