@@ -541,10 +541,9 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
             UINT32 data;
             mem_copy(ZONE_BUFFER_ADDR + open_id * BYTES_PER_PAGE + c_sect * BYTES_PER_SECTOR
                 ,WR_BUF_PTR(g_ftl_write_buf_id) + c_sect * BYTES_PER_SECTOR, BYTES_PER_SECTOR);
-            uart_printf("write : copy to zone buffer, open_id %d, c_sect %d, addr : %x", open_id, c_sect
-                , ZONE_BUFFER_ADDR + open_id * BYTES_PER_PAGE + c_sect * BYTES_PER_SECTOR);
+            //uart_printf("write : copy to zone buffer, open_id %d, c_sect %d, addr : %x", open_id, c_sect, ZONE_BUFFER_ADDR + open_id * BYTES_PER_PAGE + c_sect * BYTES_PER_SECTOR);
             data = read_dram_32(ZONE_BUFFER_ADDR + open_id * BYTES_PER_PAGE + c_sect * BYTES_PER_SECTOR);
-            uart_printf("%c", data);
+            //uart_printf("%c", data);
                 //mem_set_dram(data, WR_BUF_PTR(g_ftl_write_buf_id) + c_sect * BYTES_PER_SECTOR, 1 * BYTES_PER_SECTOR);
 
             //set_buffer_sector(open_id, c_sect, data);
@@ -554,7 +553,8 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
                 //존 버퍼 -> 호스트의 라이트 버퍼에 쓴 후에
                 //이것을 낸드에 옮긴다 (nand_page_ptprogram머시기를 쓰면 자동으로 글로 간다.)
                 UINT32 vblk = get_zone_to_FBG(c_zone);
-                nand_page_program(c_bank, vblk, p_offset, ZONE_BUFFER_ADDR + (open_id * SECTORS_PER_PAGE) * sizeof(UINT32));
+                nand_page_program(c_bank, vblk, p_offset, ZONE_BUFFER_ADDR + (open_id * BYTES_PER_PAGE));
+                uart_printf("write to nand : bank : %d, blk : %d, page : %d\n", c_bank, vblk, p_offset);
             }
             if (get_zone_wp(c_zone) == get_zone_slba(c_zone) + ZONE_SIZE)
             {
@@ -853,14 +853,14 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
                 }
 
                 mem_copy(RD_BUF_PTR(g_ftl_read_buf_id) + c_sect * BYTES_PER_SECTOR, ZONE_BUFFER_ADDR + open_id * BYTES_PER_PAGE + c_sect * BYTES_PER_SECTOR, BYTES_PER_SECTOR);
-                    uart_printf("read : copy to zone buffer, open_id %d, c_sect %d, addr : %x, rid : %d", open_id, c_sect, ZONE_BUFFER_ADDR + open_id * BYTES_PER_PAGE + c_sect * BYTES_PER_SECTOR, g_ftl_read_buf_id);
+                    //uart_printf("read : copy to zone buffer, open_id %d, c_sect %d, addr : %x, rid : %d", open_id, c_sect, ZONE_BUFFER_ADDR + open_id * BYTES_PER_PAGE + c_sect * BYTES_PER_SECTOR, g_ftl_read_buf_id);
                    // UINT32 data = read_dram_32(ZONE_BUFFER_ADDR + open_id * BYTES_PER_PAGE + c_sect * BYTES_PER_SECTOR);
                     UINT32 data2 = read_dram_32(RD_BUF_PTR(g_ftl_read_buf_id) + c_sect * BYTES_PER_SECTOR);
                     //mem_set_dram(RD_BUF_PTR(g_ftl_read_buf_id) + c_sect * BYTES_PER_SECTOR,data, 1 * BYTES_PER_SECTOR);
 
                 if (c_sect == NSECT - 1)
                 {
-                    uart_printf("BM");
+                    //uart_printf("BM");
                     flash_finish();
                     SETREG(BM_STACK_RDSET, (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS );	// change bm_read_limit
                     SETREG(BM_STACK_RESET, 0x02);				// change bm_read_limit
@@ -885,7 +885,8 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
                         while ( ((g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS) == GETREG(SATA_RBUF_PTR));	// wait if the read buffer is full (slow host)
                         #endif
                }
-               nand_page_read(c_bank, vblk, p_offset, g_ftl_read_buf_id);
+               nand_page_read(c_bank, vblk, p_offset, RD_BUF_PTR(g_ftl_read_buf_id));
+               uart_printf("read to nand : bank : %d, blk : %d, page : %d\n", c_bank, vblk, p_offset);
 
                if (c_sect == NSECT - 1) 
                {
@@ -1183,6 +1184,8 @@ void ftl_read(UINT32 const lba, UINT32 const num_sectors)
     remain_sects = num_sectors;
     bank = get_num_bank(lpn);
 
+    uart_printf("ftl_read : lba %d, num_sectors %d issued\n", lba, num_sectors);
+
 	if(lba == 7 && num_sectors == 7){
 		UINT32 next_read_buf_id = (g_ftl_read_buf_id+1) % NUM_RD_BUFFERS;
 		while(next_read_buf_id == GETREG(SATA_RBUF_PTR));
@@ -1274,6 +1277,8 @@ void ftl_write(UINT32 const lba, UINT32 const num_sectors)
     lpn          = lba / SECTORS_PER_PAGE;
     sect_offset  = lba % SECTORS_PER_PAGE;
     remain_sects = num_sectors;
+
+    uart_printf("ftl_write: lba %d, num_sectors %d issued\n", lba, num_sectors);
 
 	g_ftl_statistics[get_num_bank(lpn)].host_write++;
 
