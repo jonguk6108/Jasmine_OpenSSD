@@ -488,7 +488,13 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
         UINT32 c_fcg = lba % NUM_FCG;
 
         UINT32 c_zone = lba;
-        if (c_zone >= NZONE) return;
+        if (c_zone >= NZONE) {
+            flash_finish();
+            SETREG(BM_STACK_WRSET, (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS);	// change bm_read_limit
+            SETREG(BM_STACK_RESET, 0x01);				// change bm_read_limit
+            g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS;
+            return;
+        }
         UINT32 c_bank = c_fcg * DEG_ZONE + b_offset;
 
         UINT8 zone_state = get_zone_state(c_zone);
@@ -497,15 +503,27 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
 
         if (zone_state == 0 || zone_state == 1)
         {
-            if (c_lba != zone_wp)   return;
+            if (c_lba != zone_wp) {
+                flash_finish();
+                SETREG(BM_STACK_WRSET, (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS);	// change bm_read_limit
+                SETREG(BM_STACK_RESET, 0x01);				// change bm_read_limit
+                g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS;
+                return;
+            }
             if (zone_state == 0)
             {
-                uart_printf("open zone");
                 //Q) max_open_zone reset에서는 안만짐??
-                if (OPEN_ZONE == MAX_OPEN_ZONE) return;
+                if (OPEN_ZONE == MAX_OPEN_ZONE) {
+                    flash_finish();
+                    SETREG(BM_STACK_WRSET, (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS);	// change bm_read_limit
+                    SETREG(BM_STACK_RESET, 0x01);				// change bm_read_limit
+                    g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS;
+                    return;
+                }
                 //Q) dequeue에서는 사용할 것이 없ㅇ면 리턴을 어케줌??
                 //if(FB[c_fcg][NBLK] == 0) return -1; 
 
+                uart_printf("open zone");
                 UINT32 dequeue_fbg = dequeue_FBG();
                 UINT32 open_id = dequeue_open_id();
                 set_zone_to_FBG(c_zone, dequeue_fbg);
@@ -560,7 +578,13 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
             }
         }
 
-        else if (zone_state == 2) return;
+        else if (zone_state == 2) {
+            flash_finish();
+            SETREG(BM_STACK_WRSET, (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS);	// change bm_read_limit
+            SETREG(BM_STACK_RESET, 0x01);				// change bm_read_limit
+            g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS;
+            return;
+        }
 
         /*
          else if (zone_state == 3)
@@ -754,7 +778,13 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
         UINT32 c_fcg = lba % NUM_FCG;
 
         UINT32 c_zone = lba;
-        if (c_zone >= NZONE) return;
+        if (c_zone >= NZONE) {  //wrong input : c_zone cannot bigger than NZONE
+            flash_finish();
+            SETREG(BM_STACK_RDSET, (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS);	// change bm_read_limit
+            SETREG(BM_STACK_RESET, 0x02);				// change bm_read_limit
+            g_ftl_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
+            return;
+        }
         UINT32 c_bank = c_fcg * DEG_ZONE + b_offset;
 
         UINT8 zone_state = get_zone_state(c_zone);
@@ -873,6 +903,8 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
                         #endif
                }
                nand_page_read(c_bank, vblk, p_offset, RD_BUF_PTR(g_ftl_read_buf_id));
+               flash_finish();
+
 
                if (c_sect == NSECT - 1) 
                {
@@ -887,7 +919,6 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
         //
         else if (zone_state == 2)
         {
-        uart_printf("read closed zone");
             if (zone_wp <= c_lba)
             {
                 if (c_sect == NSECT - 1)
@@ -914,6 +945,7 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
                 i_sect++;
                 if (i_sect == num_sectors && c_sect != NSECT - 1)
                 {
+                    flash_finish();
                     SETREG(BM_STACK_RDSET, (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS);	// change bm_read_limit
                     SETREG(BM_STACK_RESET, 0x02);				// change bm_read_limit
                     g_ftl_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
