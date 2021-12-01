@@ -497,7 +497,7 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
 
         if (zone_state == 0 || zone_state == 1)
         {
-            ASSERT(zone_wp > c_lba);
+            if (c_lba != zone_wp)   return;
             if (zone_state == 0)
             {
                 uart_printf("open zone");
@@ -560,7 +560,7 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
             }
         }
 
-        ASSERT(zone_state != 2);
+        if (zone_state == 2) return;
 
         /*
          else if (zone_state == 3)
@@ -643,7 +643,7 @@ void zns_write_internal(UINT32 const start_lba, UINT32 const num_sectors, UINT32
 
         if (zone_state == 0 || zone_state == 1)
         {
-            ASSERT(zone_wp > c_lba);
+            if (zone_wp != c_lba)    return;
             if (zone_state == 0)
             {
                 //Q) max_open_zone reset에서는 안만짐??
@@ -689,7 +689,7 @@ void zns_write_internal(UINT32 const start_lba, UINT32 const num_sectors, UINT32
     
         }
 
-        ASSERT(zone_state != 2);
+        ASSERT(zone_state != 2);    //?
 
         /*
          else if (zone_state == 3)
@@ -1122,42 +1122,6 @@ void zns_read_internal(UINT32 const start_lba, UINT32 const num_sectors, UINT32 
     return;
 }
 
-void nand_page_ptread_to_host_noplus(UINT32 const bank, UINT32 const vblock, UINT32 const page_num, UINT32 const sect_offset, UINT32 const num_sectors)
-{
-    UINT32 row;
-
-    ASSERT(bank < NUM_BANKS);
-    ASSERT(vblock < VBLKS_PER_BANK);
-    ASSERT(page_num < PAGES_PER_BLK);
-
-    row = (vblock * PAGES_PER_BLK) + page_num;
-
-    SETREG(FCP_CMD, FC_COL_ROW_READ_OUT);
-    SETREG(FCP_DMA_ADDR, RD_BUF_PTR(g_ftl_read_buf_id));
-    SETREG(FCP_DMA_CNT, num_sectors * BYTES_PER_SECTOR);
-
-    SETREG(FCP_COL, sect_offset);
-#if OPTION_FTL_TEST == TRUE
-    SETREG(FCP_OPTION, FO_P | FO_E);
-#else
-    SETREG(FCP_OPTION, FO_P | FO_E | FO_B_SATA_R);
-#endif
-    SETREG(FCP_ROW_L(bank), row);
-    SETREG(FCP_ROW_H(bank), row);
-
-#if OPTION_FTL_TEST == FALSE
-    {
-        while (1)
-        {
-            UINT32 sata_id = GETREG(SATA_RBUF_PTR);
-
-            if (g_ftl_read_buf_id != sata_id)
-                break;
-        }
-    }
-#endif
-    flash_issue_cmd(bank, RETURN_ON_ISSUE);
-}
 
 void ftl_read(UINT32 const lba, UINT32 const num_sectors)
 {
@@ -1461,7 +1425,7 @@ void zns_reset(UINT32 c_zone)
 	UINT32 c_bank = (lba / NSECT) % DEG_ZONE;
 	
 	ASSERT(c_zone < NZONE);
-	ASSERT(get_zone_state(c_zone) == 2)
+    if (get_zone_state(c_zone) != 2)    return;
 	
 	set_zone_state(c_zone, 0);
 	set_zone_wp(c_zone, get_zone_slba(c_zone));
@@ -2262,10 +2226,8 @@ void set_zone_state(UINT32 zone_number, UINT8 state)
 UINT32 get_zone_wp(UINT32 zone_number)
 {
 	ASSERT(zone_number < NBLK);
-	UINT32 zone_wp, zone_slba;
+	UINT32 zone_wp;
 	zone_wp = read_dram_32(ZONE_WP_ADDR + zone_number*sizeof(UINT32));
-	zone_slba = read_dram_32(ZONE_SLBA_ADDR + zone_number*sizeof(UINT32));
-	ASSERT(zone_wp >= zone_slba && zone_wp < zone_slba + ZONE_SIZE);
 	
 	return zone_wp;
 }
