@@ -2273,7 +2273,6 @@ void set_zone_wp(UINT32 zone_number, UINT32 wp)
 {
 	ASSERT(zone_number < NBLK);
 	UINT32 zone_slba = read_dram_32(ZONE_SLBA_ADDR + zone_number*sizeof(UINT32));
-	ASSERT(zone_wp >= zone_slba && zone_wp < zone_slba + ZONE_SIZE);
 	
 	write_dram_32(ZONE_WP_ADDR + zone_number*sizeof(UINT32), wp);
 }
@@ -2325,7 +2324,7 @@ UINT32 get_zone_to_FBG(UINT32 zone_number)
 void set_zone_to_FBG(UINT32 zone_number, UINT32 FBG)
 {
 	ASSERT(zone_number < NBLK);
-	ASSERT(zone_FBG < NBLK);
+	ASSERT(FBG < NBLK);
 	write_dram_32(ZONE_TO_FBG_ADDR + zone_number*sizeof(UINT32), FBG);
 }
 
