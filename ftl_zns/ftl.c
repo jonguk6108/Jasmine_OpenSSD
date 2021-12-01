@@ -199,8 +199,6 @@ static void sanity_check(void)
     uart_printf("FBQ_BYTES: 0x%x / %u", FBQ_BYTES, FBQ_BYTES);
 
 
-    uart_printf("1 : %d %u %d %u \n", DRAM_BYTES_OTHER, DRAM_BYTES_OTHER, DRAM_SIZE - DRAM_BYTES_OTHER, DRAM_SIZE-DRAM_BYTES_OTHER);
-
     if ((dram_requirement > DRAM_SIZE) || // DRAM metadata size check
         (sizeof(misc_metadata) > BYTES_PER_PAGE)) // misc metadata size check
     {
@@ -371,16 +369,8 @@ void ftl_open(void)
     wp_open = 0; rp_open = 0;
 	wp_tlopen = 0; rp_tlopen = 0;
 	OPEN_ZONE = 0;	
-	search_bad_blk_zone();
-	UINT32 zone_number = -1;
-	for(int i = 0; i < 8; i++)
-	{
-		zone_number = dequeue_FBG();
-	}
-	rand_write_blks = zone_number + 1;
-    uart_printf("here6\n");
+
 	zns_init();
-    uart_printf("here7\n");
     /****FTL 세팅값 ******/
     uart_printf("\n----------------------");
     uart_printf("NUM_LSECTORS : %d", NUM_LSECTORS);
@@ -1789,6 +1779,7 @@ static void format(void)
                           vcount_val);
         }
     }
+
     //----------------------------------------
     // initialize SRAM metadata
     //----------------------------------------
@@ -1813,8 +1804,11 @@ static void init_metadata_sram(void)
     //----------------------------------------
     for (bank = 0; bank < NUM_BANKS; bank++)
     {
-        g_misc_meta[bank].free_blk_cnt = VBLKS_PER_BANK - META_BLKS_PER_BANK;
-        g_misc_meta[bank].free_blk_cnt -= get_bad_blk_cnt(bank);
+        g_misc_meta[bank].free_blk_cnt = 7;
+        
+        //g_misc_meta[bank].free_blk_cnt = rand_write_blks - META_BLKS_PER_BANK;
+        //g_misc_meta[bank].free_blk_cnt -= get_bad_blk_cnt(bank);
+
         // NOTE: vblock #0,1 don't use for user space
         write_dram_16(VCOUNT_ADDR + ((bank * VBLKS_PER_BANK) + 0) * sizeof(UINT16), VC_MAX);
         write_dram_16(VCOUNT_ADDR + ((bank * VBLKS_PER_BANK) + 1) * sizeof(UINT16), VC_MAX);
@@ -1868,6 +1862,15 @@ static void init_metadata_sram(void)
             ASSERT(vblock < VBLKS_PER_BANK);
         }while(is_bad_block(bank, vblock) == TRUE);
     }
+
+    search_bad_blk_zone();
+    UINT32 zone_number = -1;
+    for (int i = 0; i < 8; i++)
+    {
+        zone_number = dequeue_FBG();
+    }
+    rand_write_blks = zone_number + 1;
+
 }
 // logging misc + vcount metadata
 static void logging_misc_metadata(void)
