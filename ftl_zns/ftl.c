@@ -544,10 +544,10 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
             }
             if (get_zone_wp(c_zone) == get_zone_slba(c_zone) + ZONE_SIZE)
             {
-                uart_printf("zone close");
+                uart_printf("close zone");
                 set_zone_state(c_zone, 2);
                 UINT8 open_id = get_zone_to_ID(c_zone);
-                set_zone_to_ID(c_zone, -1);
+                mem_set_dram(ZONE_BUFFER_ADDR + open_id * BYTES_PER_PAGE, 0xFFFFFFFF, BYTES_PER_PAGE);
                 enqueue_open_id(open_id);
                 OPEN_ZONE -= 1;
             }
