@@ -536,20 +536,19 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
             //set_buffer_sector(open_id, c_sect, data);
             if (c_sect == NSECT - 1)
             {
-                //존 버퍼에 있는 데이터를 모두 nand에다가 write
-                //존 버퍼 -> 호스트의 라이트 버퍼에 쓴 후에
-                //이것을 낸드에 옮긴다 (nand_page_ptprogram머시기를 쓰면 자동으로 글로 간다.)
                 UINT32 vblk = get_zone_to_FBG(c_zone);
                 nand_page_program(c_bank, vblk, p_offset, ZONE_BUFFER_ADDR + (open_id * BYTES_PER_PAGE));
+                //mem_set_dram(ZONE_BUFFER_ADDR + open_id * BYTES_PER_PAGE, 0xABCDEF23, BYTES_PER_PAGE);
+                uart_printf("nand page program issued, i_sect %d\n", i_sect);
             }
             if (get_zone_wp(c_zone) == get_zone_slba(c_zone) + ZONE_SIZE)
             {
-                uart_printf("close zone");
                 set_zone_state(c_zone, 2);
                 UINT8 open_id = get_zone_to_ID(c_zone);
-                mem_set_dram(ZONE_BUFFER_ADDR + open_id * BYTES_PER_PAGE, 0xABCDEF23, BYTES_PER_PAGE);
                 enqueue_open_id(open_id);
+                mem_set_dram(ZONE_BUFFER_ADDR + open_id * BYTES_PER_PAGE, 0xABCDEF23, BYTES_PER_PAGE);
                 OPEN_ZONE -= 1;
+                uart_printf("close zone, i_sect %d\n", i_sect);
             }
             if (c_sect == NSECT - 1) 
             {
@@ -924,6 +923,7 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
             
             if(1)
             {
+                
                 UINT32 vblk = get_zone_to_FBG(c_zone);
 
                 //1) next_id를 증가시키고, 전체를 계속해서 리드호스트버퍼에 덮어씌우며 c_sect == NSECT -1 일 될 경우에 read_id를 갱신시켜준다.
@@ -940,7 +940,7 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
 #endif
                 }
                 nand_page_read(c_bank, vblk, p_offset, RD_BUF_PTR(g_ftl_read_buf_id));
-
+                uart_printf("closed zone : read data from bank %d, blk %d, off %d",c_bank, vblk, p_offset );
                 if (c_sect == NSECT - 1)
                 {
                     flash_finish();
