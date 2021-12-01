@@ -538,8 +538,9 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
             {
                 UINT32 vblk = get_zone_to_FBG(c_zone);
                 nand_page_program(c_bank, vblk, p_offset, ZONE_BUFFER_ADDR + (open_id * BYTES_PER_PAGE));
+                flash_finish();
                 //mem_set_dram(ZONE_BUFFER_ADDR + open_id * BYTES_PER_PAGE, 0xABCDEF23, BYTES_PER_PAGE);
-                uart_printf("nand page program issued, i_sect %d\n", i_sect);
+                //uart_printf("nand page program issued, i_sect %d\n", i_sect);
             }
             if (get_zone_wp(c_zone) == get_zone_slba(c_zone) + ZONE_SIZE)
             {
@@ -548,7 +549,7 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
                 enqueue_open_id(open_id);
                 mem_set_dram(ZONE_BUFFER_ADDR + open_id * BYTES_PER_PAGE, 0xABCDEF23, BYTES_PER_PAGE);
                 OPEN_ZONE -= 1;
-                uart_printf("close zone, i_sect %d\n", i_sect);
+                //uart_printf("close zone, i_sect %d\n", i_sect);
             }
             if (c_sect == NSECT - 1) 
             {
