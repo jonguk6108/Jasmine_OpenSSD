@@ -167,8 +167,10 @@ static UINT32 get_TL_wp(UINT32 zone_number);
 static void set_TL_wp(UINT32 zone_number, UINT32 wp);
 static UINT32 get_TL_buffer(UINT32 zone_number, UINT32 sector_offset);
 static void set_TL_buffer(UINT32 zone_number,UINT32 sector_offset, UINT32 data);
-static UINT32 get_TL_num(UINT32 zone_number);
-static void set_TL_num(UINT32 zone_number, UINT32 num);
+static UINT32 get_TL_src_to_dest_zone(UINT32 zone_number);
+static void set_TL_src_to_dest_zone(UINT32 zone_number, UINT32 num);
+
+static void fill_tl(int zone, int c_lba, int tl_num);
 
 
 static void sanity_check(void)
@@ -176,7 +178,7 @@ static void sanity_check(void)
     UINT32 dram_requirement = RD_BUF_BYTES + WR_BUF_BYTES + COPY_BUF_BYTES + FTL_BUF_BYTES
         + HIL_BUF_BYTES + TEMP_BUF_BYTES + BAD_BLK_BMP_BYTES + PAGE_MAP_BYTES + VCOUNT_BYTES
 		+ ZONE_STATE_BYTES + ZONE_WP_BYTES + ZONE_SLBA_BYTES +ZONE_BUFFER_BYTES + ZONE_TO_FBG_BYTES
-		+ FBQ_BYTES + OPEN_ZONE_Q_BYTES + ZONE_TO_ID_BYTES + IZC_BYTES + TL_INTERNAL_BUFFER_BYTES;
+		+ FBQ_BYTES + OPEN_ZONE_Q_BYTES + ZONE_TO_ID_BYTES + IZC_BYTES + TL_INTERNAL_BUFFER_BYTES + TL_BYTES + TL_BITMAP_BYTES + TL_WP_BYTES + TL_NUM_BYTES;
     
     uart_printf("DRAM_BASE: 0x%x / %u",DRAM_BASE,DRAM_BASE);
     uart_printf("COPY_BUF_ADDR: 0x%x / %u", COPY_BUF_ADDR, COPY_BUF_ADDR);
@@ -465,9 +467,9 @@ void zns_init(void)
 		}
 		for(UINT32 j = 0; j < NSECT; j++)
 		{
-			set_TL_buffer(i, j,-1);
+			//set_TL_buffer(i, j,-1);
 		}
-		set_TL_num(i, -1);
+		//set_TL_num(i, -1);
 		set_TL_wp(i, 0);
 	}
 	
@@ -615,7 +617,7 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
         {
             UINT32 tl_num = p_offset * DEG_ZONE * NSECT + b_offset * NSECT + c_sect;
             UINT32 open_id = get_zone_to_ID(c_zone);
-            if (get_TL_buffer(open_id, c_sect) == 1) {
+            if (get_buffer_sector(open_id, c_sect) == 1) {
                 g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS;
                 flash_finish();
                 SETREG(BM_STACK_WRSET, g_ftl_write_buf_id);   // change bm_read_limit
@@ -638,7 +640,7 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
 
             if (c_sect == NSECT - 1)
             {
-                //UINT32 vblk = get_TL_src_to_dest_zone(c_zone);
+                UINT32 vblk = get_TL_src_to_dest_zone(c_zone);
 
                 nand_page_program(c_bank, vblk, p_offset, ZONE_BUFFER_ADDR + (open_id * BYTES_PER_PAGE));
                 flash_finish();
@@ -1076,8 +1078,8 @@ void zns_tl_open(UINT32 zone, UINT32 tl_addr)
 	
 	set_TL_src_to_dest_zone(zone, dequeue_FBG());
 	UINT8 open_id = dequeue_open_id();
-	set_zone_to_id(zone, open_id);
-	set zone_state(zone, 3);
+	set_zone_to_ID(zone, open_id);
+	set_zone_state(zone, 3);
 	OPEN_ZONE++;
 	
 	for(UINT32 i = 0; i < DEG_ZONE * NPAGE; i++)
@@ -1096,7 +1098,7 @@ void fill_tl(int zone, int c_lba, int tl_num)
 	UINT32 c_bank = (c_lba / NSECT) % DEG_ZONE;
 	UINT32 p_offset = (c_lba / NSECT / DEG_ZONE) % NPAGE;
 	if(tl_num >= DEG_ZONE * NPAGE) return;
-	UINT8 open_id = get_zone_to_ID(zone_number);
+	UINT8 open_id = get_zone_to_ID(zone);
 	if(get_TL_bitmap(open_id, tl_num) == 0) return;
 	
 	zns_read_internal(c_lba, NSECT, TL_INTERNAL_BUFFER_ADDR);
