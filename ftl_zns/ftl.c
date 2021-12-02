@@ -501,6 +501,15 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
         UINT32 zone_wp = get_zone_wp(c_zone);
         UINT32 zone_slba = get_zone_slba(c_zone);
 
+        if (c_sect == 0 || i_sect == 0)
+        {
+            //hello
+            #if OPTION_FTL_TEST == 0
+            while (g_ftl_write_buf_id == GETREG(SATA_WBUF_PTR));
+            //while ( ((g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS) == GETREG(SATA_WBUF_PTR));	// wait if the read buffer is full (slow host)
+            #endif
+        }
+
         if (zone_state == 0 || zone_state == 1)
         {
             if (c_lba != zone_wp) {
@@ -533,6 +542,7 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
             }
 
             set_zone_wp(c_zone, get_zone_wp(c_zone) + 1);
+            /*
             if (c_sect == NSECT - 1)
             {
                 //hello
@@ -541,6 +551,7 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
                 //while ( ((g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS) == GETREG(SATA_WBUF_PTR));	// wait if the read buffer is full (slow host)
                  #endif
             }
+            */
 
             UINT8 open_id = get_zone_to_ID(c_zone);
 
@@ -806,11 +817,16 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
         UINT32 zone_wp = get_zone_wp(c_zone);
         UINT32 zone_slba = get_zone_slba(c_zone);
 
-        if (zone_state == 0)
+        if (c_sect == 0 || i_sect == 0)
         {
             #if OPTION_FTL_TEST == 0
-            while ((g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS == GETREG(SATA_RBUF_PTR));	// wait if the read buffer is full (slow host)
+            while (((g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS) == GETREG(SATA_RBUF_PTR));	// wait if the read buffer is full (slow host)
             #endif
+        }
+
+
+        if (zone_state == 0)
+        {
             /*if (c_sect == NSECT - 1)
             {
                 #if OPTION_FTL_TEST == 0
@@ -842,9 +858,6 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
         }
         else if (zone_state == 1 || zone_state == 2)
         {
-            #if OPTION_FTL_TEST == 0
-            while ((g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS == GETREG(SATA_RBUF_PTR));	// wait if the read buffer is full (slow host)
-            #endif
             if (zone_wp <= c_lba)
             {
                 /*if (c_sect == NSECT - 1)
@@ -1078,9 +1091,11 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
         i_sect++;
         if (i_sect == num_sectors && c_sect != NSECT - 1) 
         {
+            /*
             #if OPTION_FTL_TEST == 0
             while ((g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS == GETREG(SATA_RBUF_PTR));	// wait if the read buffer is full (slow host)
             #endif
+            */
 
             flash_finish();
             SETREG(BM_STACK_RDSET, (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS);	// change bm_read_limit
