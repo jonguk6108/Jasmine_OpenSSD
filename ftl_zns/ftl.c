@@ -879,19 +879,21 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
 		
         else if (zone_state == 3)
         {
+            uart_printf("zns_read : lba %d, num_sectors %d issued", start_lba, num_sectors);
             UINT32 i_tl = c_lba - c_zone * DEG_ZONE * NSECT * NPAGE;
             UINT32 TL_WP = get_TL_wp(c_zone);
             if (TL_WP > i_tl)
             { // this data in tl zone
                 if (((TL_WP - 1) / NSECT) * NSECT <= i_tl && ((TL_WP - 1) % NSECT) != NSECT - 1)
                 {
+                    uart_printf("TL read from buffer TL_WP : %d, i_tl : %d, \n", TL_WP, i_tl);
                     UINT8 open_id = get_zone_to_ID(c_zone);
-                    UINT32 data = get_buffer_sector(open_id, c_sect);
+                    //UINT32 data = get_buffer_sector(open_id, c_sect);
 
-                    mem_set_dram(RD_BUF_PTR(read_buffer_addr) + c_sect * BYTES_PER_SECTOR,
-                        data, 1 * BYTES_PER_SECTOR);
+                    //mem_set_dram(RD_BUF_PTR(read_buffer_addr) + c_sect * BYTES_PER_SECTOR,
+                    //    data, 1 * BYTES_PER_SECTOR);
                     //밑에 꺼도 가능
-                    //mem_copy(RD_BUF_PTR(g_ftl_read_buf_id) + c_sect * BYTES_PER_SECTOR, ZONE_BUFFER_ADDR + open_id * BYTES_PER_PAGE + c_sect * BYTES_PER_SECTOR, BYTES_PER_SECTOR);
+                    mem_copy(RD_BUF_PTR(g_ftl_read_buf_id) + c_sect * BYTES_PER_SECTOR, ZONE_BUFFER_ADDR + open_id * BYTES_PER_PAGE + c_sect * BYTES_PER_SECTOR, BYTES_PER_SECTOR);
 
                     if (c_sect == NSECT - 1)
                     {
@@ -921,7 +923,7 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
             else
             {
 
-                UINT32 vblk = get_zone_to_ID(c_zone);
+                UINT32 vblk = get_zone_to_FBG(c_zone);
                 nand_page_read(c_bank, vblk, p_offset, RD_BUF_PTR(g_ftl_read_buf_id));
 
                 if (c_sect == NSECT - 1)
