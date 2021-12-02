@@ -1274,6 +1274,116 @@ void zns_read_internal(UINT32 const start_lba, UINT32 const num_sectors, UINT32 
     return;
 }
 
+void zns_reset(UINT32 c_zone)
+{
+	UINT32 lba = c_zone / ZONE_SIZE;
+	UINT32 c_bank = (lba / NSECT) % DEG_ZONE;
+	
+	ASSERT(c_zone < NZONE);
+    if (get_zone_state(c_zone) != 2)    return;
+	
+	set_zone_state(c_zone, 0);
+	set_zone_wp(c_zone, get_zone_slba(c_zone));
+	nand_block_erase(c_bank, get_zone_to_FBG(c_zone));
+	
+	enqueue_FBG(get_zone_to_FBG(c_zone));
+	set_zone_to_FBG(c_zone, -1);
+
+}
+
+void zns_get_desc(UINT32 c_zone, UINT32 nzone)
+{
+	for(UINT32 i = 0; i < nzone; i++) 
+	{
+		ASSERT(i + c_zone < NZONE);
+
+		uart_printf("ZONE %d descriptor", c_zone + i);
+        /*
+        if(get_zone_state(i + c_zone) == 3)
+        {
+            uart_printf("State : TL_OPEN");
+            uart_printf("Slba : %d", get_zone_slba(i + c_zone));
+            uart_printf("Wp : %d", get_TL_wp(i + c_zone) + get_zone_slba(i + c_zone));
+
+            //descs[i].state = 3;
+            //descs[i].slba = get_zone_slba(i + c_zone);
+            //descs[i].wp = get_TL_wp(i + c_zone) + get_zone_slba(i + c_zone);
+            continue;
+        }
+        */
+
+		//descs[i].state = get_zone_state(i + c_zone);
+		//descs[i].slba = get_zone_slba(i + c_zone);
+		//descs[i].wp = get_zone_wp(i + c_zone);
+        if(get_zone_state(i + c_zone) == 0) uart_printf("State : EMPTY");
+		else if(get_zone_state(i + c_zone) == 1) uart_printf("State : OPEN");
+		else if(get_zone_state(i + c_zone) == 2) uart_printf("State : FULL");
+		
+		uart_printf("Slba : %d", get_zone_slba(i + c_zone));
+		uart_printf("Wp : %d", get_zone_wp(i + c_zone));
+		
+		
+        //todo : uart_print desc
+	}
+  return;
+}
+
+void zns_izc(UINT32 src_zone, UINT32 dest_zone, UINT32 copy_len, UINT32 *copy_list)
+{
+	ASSERT(src_zone != dest_zone);
+	ASSERT(src_zone < NZONE && dest_zone < NZONE);
+	ASSERT(get_zone_state(src_zone) == 2 && get_zone_state(dest_zone) == 0);
+	
+	UINT32 data[NSECT];
+	for(UINT32 i = 0; i < copy_len; i++)
+	{
+		UINT32 s_lba = get_zone_slba(src_zone) + copy_list[i] * NSECT;
+		//zns_read(s_lba, NSECT, TL_INTERNAL_BUFFER_ADDR);
+		UINT32 d_lba = get_zone_slba(dest_zone) + i * NSECT;
+		zns_write(d_lba, NSECT, TL_INTERNAL_BUFFER_ADDR, 1);
+	}
+	zns_reset(get_zone_slba(src_zone));
+	OPEN_ZONE++;
+}
+
+void zns_tl_open(UINT32 zone, UINT8* valid_arr)
+{
+	if(get_zone_state(zone) != 2) return;
+	if(OPEN_ZONE == MAX_OPEN_ZONE) return;
+	
+	set_TL_src_to_dest_zone(zone, dequeue_FBG());
+	
+	OPEN_ZONE++;
+	UINT8 open_id = dequeue_open_id();
+	set_zone_to_id(zone, open_id);
+	
+	set zone_state(zone, 3);
+	for(UINT32 i = 0; i < DEG_ZONE * NPAGE; i++)
+	{
+		set_TL_bitmap(open_id, i, valid_arr[i]);
+	}
+	set_TL_wp(zone, 0);
+	
+	fill_tl(zone, zone*ZONE_SIZE, 0);
+}
+
+void fill_tl(int zone, int c_lba, int tl_num)
+{
+	UINT32 c_sect = c_lba % NSECT;
+	UINT32 c_bank = (c_lba / NSECT) % DEG_ZONE;
+	UINT32 p_offset = (c_lba / NSECT / DEG_ZONE) % NPAGE;
+	if(tl_num >= DEG_ZONE * NPAGE) return;
+	UINT8 open_id = get_zone_to_ID(zone_number);
+	if(get_TL_bitmap(open_id, tl_num) == 0) return;
+	
+	zns_read(c_lba, NSECT, TL_INTERNAL_BUFFER_ADDR);
+	set_TL_wp(zone, get_TL_wp(zone) + NSECT);
+	//nand_write(c_bank, get_TL_src_to_dest_zone(zone), p_offset, TL_INTERNAL_BUFFER_ADDR, spare); /// 여기는 고칠 필요가 있어용
+	
+	fill_tl(zone, c_lba + ZONE_SIZE, tl_num + 1);
+}
+
+
 
 void ftl_read(UINT32 const lba, UINT32 const num_sectors)
 {
@@ -1570,80 +1680,6 @@ static void write_page(UINT32 const lpn, UINT32 const sect_offset, UINT32 const 
     set_vpn(lpn, new_vpn);
     set_vcount(bank, vblock, get_vcount(bank, vblock) + 1);
 }
-
-void zns_reset(UINT32 c_zone)
-{
-	UINT32 lba = c_zone / ZONE_SIZE;
-	UINT32 c_bank = (lba / NSECT) % DEG_ZONE;
-	
-	ASSERT(c_zone < NZONE);
-    if (get_zone_state(c_zone) != 2)    return;
-	
-	set_zone_state(c_zone, 0);
-	set_zone_wp(c_zone, get_zone_slba(c_zone));
-	nand_block_erase(c_bank, get_zone_to_FBG(c_zone));
-	
-	enqueue_FBG(get_zone_to_FBG(c_zone));
-	set_zone_to_FBG(c_zone, -1);
-
-}
-
-void zns_get_desc(UINT32 c_zone, UINT32 nzone)
-{
-	for(UINT32 i = 0; i < nzone; i++) 
-	{
-		ASSERT(i + c_zone < NZONE);
-
-		uart_printf("ZONE %d descriptor", c_zone + i);
-        /*
-        if(get_zone_state(i + c_zone) == 3)
-        {
-            uart_printf("State : TL_OPEN");
-            uart_printf("Slba : %d", get_zone_slba(i + c_zone));
-            uart_printf("Wp : %d", get_TL_wp(i + c_zone) + get_zone_slba(i + c_zone));
-
-            //descs[i].state = 3;
-            //descs[i].slba = get_zone_slba(i + c_zone);
-            //descs[i].wp = get_TL_wp(i + c_zone) + get_zone_slba(i + c_zone);
-            continue;
-        }
-        */
-
-		//descs[i].state = get_zone_state(i + c_zone);
-		//descs[i].slba = get_zone_slba(i + c_zone);
-		//descs[i].wp = get_zone_wp(i + c_zone);
-        if(get_zone_state(i + c_zone) == 0) uart_printf("State : EMPTY");
-		else if(get_zone_state(i + c_zone) == 1) uart_printf("State : OPEN");
-		else if(get_zone_state(i + c_zone) == 2) uart_printf("State : FULL");
-		
-		uart_printf("Slba : %d", get_zone_slba(i + c_zone));
-		uart_printf("Wp : %d", get_zone_wp(i + c_zone));
-		
-		
-        //todo : uart_print desc
-	}
-  return;
-}
-/*
-void zns_izc(UINT32 src_zone, UINT32 dest_zone, UINT32 copy_len, UINT32 *copy_list)
-{
-	ASSERT(src_zone != dest_zone);
-	ASSERT(src_zone < NZONE && dest_zone < NZONE);
-	ASSERT(get_zone_state(src_zone) == 2 && get_zone_state(dest_zone) == 0);
-	
-	UINT32 data[NSECT];
-	for(UINT32 i = 0; i < copy_len; i++)
-	{
-		UINT32 s_lba = get_zone_slba(src_zone) + copy_list[i] * NSECT;
-		zns_read(s_lba, NSECT, TL_INTERNAL_BUFFER_ADDR);
-		UINT32 d_lba = get_zone_slba(dest_zone) + i * NSECT;
-		zns_write(d_lba, NSECT, TL_INTERNAL_BUFFER_ADDR, 1);
-	}
-	zns_reset(get_zone_slba(src_zone));
-	OPEN_ZONE++;
-}
-*/
-
 
 // get vpn from PAGE_MAP
 static UINT32 get_vpn(UINT32 const lpn)
@@ -2474,7 +2510,7 @@ void set_zone_to_ID(UINT32 zone_number, UINT8 id)
 	write_dram_8(ZONE_TO_ID_ADDR + zone_number * sizeof(UINT8), id);
 }
 // ZNS+
-/*
+
 UINT8 get_TL_bitmap(UINT32 open_id, UINT32 page_offset)
 {
 	ASSERT(open_id < MAX_OPEN_ZONE);
@@ -2501,15 +2537,15 @@ void set_TL_wp(UINT32 zone_number, UINT32 wp)
 	ASSERT(zone_number < NBLK);
 	write_dram_32(TL_WP_ADDR + zone_number*sizeof(UINT32), wp);
 }
-UINT32 get_TL_num(UINT32 zone_number)
+UINT32 get_TL_src_to_dest_zone(UINT32 zone_number)
 {
 	ASSERT(zone_number < NBLK);
 	UINT32 data = read_dram_32(TL_NUM_ADDR + zone_number * sizeof(UINT32));
 	return data;
 }
-void set_TL_num(UINT32 zone_number, UINT32 num)
+void set_TL_src_to_dest_zone(UINT32 zone_number, UINT32 num)
 {
 	ASSERT(zone_number < NBLK);
 	write_dram_32(TL_NUM_ADDR + zone_number * sizeof(UINT32), num);
 }
-*/
+
