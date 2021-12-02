@@ -457,14 +457,6 @@ void zns_init(void)
 		}
 	}
 	
-	/*
-	for(UINT32 i = 0; i< NBLK; i++)
-	{
-		enqueue_FBG(i);
-	}
-	*/
-	//ZNS+
-	/*
 	for(UINT32 i = 0; i < NZONE; i++)
 	{	
 		for(UINT32 j = 0; j < DEG_ZONE * NPAGE; j++)
@@ -478,7 +470,7 @@ void zns_init(void)
 		set_TL_num(i, -1);
 		set_TL_wp(i, 0);
 	}
-	*/
+	
 }
 
 void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const write_buffer_addr)
@@ -619,7 +611,7 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
             return;
         }
 
-        /*else if (zone_state == 3)
+        else if (zone_state == 3)
         {
             UINT32 tl_num = p_offset * DEG_ZONE * NSECT + b_offset * NSECT + c_sect;
             UINT32 open_id = get_zone_to_ID(c_zone);
@@ -646,7 +638,7 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
 
             if (c_sect == NSECT - 1)
             {
-                //UINT32 vblk = zone_to_FBG(get_TL_src_to_dest_zone(c_zone));
+                //UINT32 vblk = get_TL_src_to_dest_zone(c_zone);
 
                 nand_page_program(c_bank, vblk, p_offset, ZONE_BUFFER_ADDR + (open_id * BYTES_PER_PAGE));
                 flash_finish();
@@ -671,7 +663,7 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
 
            
 
-        }*/
+        }
 
         i_sect++;
         if (i_sect == num_sectors && c_sect != NSECT - 1) 
@@ -883,7 +875,7 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
             }
         }
 		
-        /*else if (zone_state == 3)
+        else if (zone_state == 3)
         {
             UINT32 i_tl = c_lba - c_zone * DEG_ZONE * NSECT * NPAGE;
             UINT32 TL_WP = get_TL_wp(c_zone);
@@ -938,19 +930,13 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
                     g_ftl_read_buf_id = ((g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS);
                 }
             }
-        }*/
+        }
 
 
 
         i_sect++;
         if (i_sect == num_sectors && c_sect != NSECT - 1) 
         {
-            /*
-            #if OPTION_FTL_TEST == 0
-            while ((g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS == GETREG(SATA_RBUF_PTR));   // wait if the read buffer is full (slow host)
-            #endif
-            */
-
             flash_finish();
             SETREG(BM_STACK_RDSET, (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS);   // change bm_read_limit
             SETREG(BM_STACK_RESET, 0x02);            // change bm_read_limit
@@ -1071,11 +1057,19 @@ void zns_izc(UINT32 src_zone, UINT32 dest_zone, UINT32 copy_len, UINT32 izc_addr
 		zns_write_internal(d_lba, NSECT, TL_INTERNAL_BUFFER_ADDR);
 		set_zone_wp(dest_zone, get_zone_wp(dest_zone) + NSECT);
 	}
+	
 	zns_reset(get_zone_slba(src_zone));
 	OPEN_ZONE++;
+	
+	if(copy_len == DEG_ZONE * NPAGE)
+	{
+		set_zone_state(dest_zone, 2);
+		enqueue_open_id(get_zone_to_ID(dest_zone));		
+		OPEN_ZONE -= 1;
+	}
 }
-/*
-void zns_tl_open(UINT32 zone, UINT8* valid_arr)
+
+void zns_tl_open(UINT32 zone, UINT32 tl_addr)
 {
 	if(get_zone_state(zone) != 2) return;
 	if(OPEN_ZONE == MAX_OPEN_ZONE) return;
@@ -1088,7 +1082,8 @@ void zns_tl_open(UINT32 zone, UINT8* valid_arr)
 	
 	for(UINT32 i = 0; i < DEG_ZONE * NPAGE; i++)
 	{
-		set_TL_bitmap(open_id, i, valid_arr[i]);
+		UINT8 data = read_dram_8(tl_addr + i * sizeof(UINT8));
+		set_TL_bitmap(open_id, i, data);
 	}
 	set_TL_wp(zone, 0);
 	
@@ -1112,7 +1107,7 @@ void fill_tl(int zone, int c_lba, int tl_num)
 	
 	fill_tl(zone, c_lba + ZONE_SIZE, tl_num + 1);
 }
-*/
+
 
 
 void ftl_read(UINT32 const lba, UINT32 const num_sectors)
@@ -1272,8 +1267,14 @@ void ftl_write(UINT32 const lba, UINT32 const num_sectors)
         //make DRAM addr for TL open (32KB DRAM)
         while (g_ftl_write_buf_id == GETREG(SATA_WBUF_PTR));	// bm_write_limit should not outpace SATA_WBUF_PTR
         UINT32 src_zone = read_dram_32(WR_BUF_PTR(g_ftl_write_buf_id) + lba * BYTES_PER_SECTOR);
-        //mem_copy(TL_ADDR,(WR_BUF_PTR(g_ftl_write_buf_id)+lba*BYTES_PER_SECTOR + 1*sizeof(int)), SECTORS_PER_PAGE*PAGES_PER_BLK*NUM_BANKS);
-        //zns_tl_open(src_zone, TL_ADDR);
+        //mem_copy(TL_ADDR,(WR_BUF_PTR(g_ftl_write_buf_id)+lba*BYTES_PER_SECTOR + 1*sizeof(int)), PAGES_PER_BLK*NUM_BANKS);
+		
+		for (int i = 0; i < DEG_ZONE * NPAGE; i++) {
+            UINT8 data = read_dram_8(WR_BUF_PTR(g_ftl_write_buf_id) + lba * BYTES_PER_SECTOR + sizeof(int) + i * sizeof(char));
+            write_dram_8(TL_ADDR + i * sizeof(char), data);
+        }
+		zns_tl_open(src_zone, TL_ADDR);
+		
         g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS;		// Circular buffer
         flash_finish();
         SETREG(BM_STACK_WRSET, g_ftl_write_buf_id);	// change bm_write_limit
@@ -2246,7 +2247,7 @@ void set_zone_to_ID(UINT32 zone_number, UINT8 id)
 	write_dram_8(ZONE_TO_ID_ADDR + zone_number * sizeof(UINT8), id);
 }
 // ZNS+
-/*
+
 UINT8 get_TL_bitmap(UINT32 open_id, UINT32 page_offset)
 {
 	ASSERT(open_id < MAX_OPEN_ZONE);
@@ -2284,4 +2285,3 @@ void set_TL_src_to_dest_zone(UINT32 zone_number, UINT32 num)
 	ASSERT(zone_number < NBLK);
 	write_dram_32(TL_NUM_ADDR + zone_number * sizeof(UINT32), num);
 }
-*/

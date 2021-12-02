@@ -125,9 +125,9 @@
 #define TL_INTERNAL_BUFFER_BYTES		(BYTES_PER_PAGE)
 
 // ZNS+
-/*
+
 #define TL_ADDR				TL_INTERNAL_BUFFER_ADDR + TL_INTERNAL_BUFFER_BYTES
-#define TL_BYTES			NSECT * NPAGE * DEG_ZONE
+#define TL_BYTES			(DEG_ZONE * NPAGE)
 
 #define TL_BITMAP_ADDR		TL_ADDR + TL_BYTES
 #define TL_BITMAP_BYTES		((NBLK * (NPAGE*DEG_ZONE) * sizeof(UINT8) + BYTES_PER_SECTOR - 1) / BYTES_PER_SECTOR * BYTES_PER_SECTOR)
@@ -140,7 +140,6 @@
 
 
 
-*/
 
 
 ///////////////////////////////
