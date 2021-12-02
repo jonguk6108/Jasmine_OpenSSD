@@ -922,9 +922,8 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
             }
             else
             {
-
                 UINT32 vblk = get_zone_to_FBG(c_zone);
-                nand_page_read(c_bank, vblk, p_offset, RD_BUF_PTR(g_ftl_read_buf_id));
+                nand_page_ptread(c_bank, vblk, p_offset, c_sect, 1, RD_BUF_PTR(g_ftl_read_buf_id), RETURN_ON_ISSUE);
 
                 if (c_sect == NSECT - 1)
                 {
