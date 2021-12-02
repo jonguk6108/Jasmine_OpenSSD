@@ -370,6 +370,14 @@ void ftl_open(void)
 	wp_tlopen = 0; rp_tlopen = 0;
 	OPEN_ZONE = 0;	
 
+    search_bad_blk_zone();
+    UINT32 zone_number = -1;
+    for (int i = 0; i < 8; i++)
+    {
+        zone_number = dequeue_FBG();
+    }
+    rand_write_blks = zone_number + 1;
+
 	zns_init();
     /****FTL 세팅값 ******/
     uart_printf("\n----------------------");
@@ -1970,14 +1978,6 @@ static void init_metadata_sram(void)
             ASSERT(vblock < VBLKS_PER_BANK);
         }while(is_bad_block(bank, vblock) == TRUE);
     }
-
-    search_bad_blk_zone();
-    UINT32 zone_number = -1;
-    for (int i = 0; i < 8; i++)
-    {
-        zone_number = dequeue_FBG();
-    }
-    rand_write_blks = zone_number + 1;
 
 }
 // logging misc + vcount metadata
