@@ -489,10 +489,10 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
 
         UINT32 c_zone = lba;
         if (c_zone >= NZONE) {
-            flash_finish();
-            SETREG(BM_STACK_WRSET, (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS);	// change bm_read_limit
-            SETREG(BM_STACK_RESET, 0x01);				// change bm_read_limit
             g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS;
+            flash_finish();
+            SETREG(BM_STACK_WRSET, g_ftl_write_buf_id);	// change bm_read_limit
+            SETREG(BM_STACK_RESET, 0x01);				// change bm_read_limit
             return;
         }
         UINT32 c_bank = c_fcg * DEG_ZONE + b_offset;
@@ -504,20 +504,20 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
         if (zone_state == 0 || zone_state == 1)
         {
             if (c_lba != zone_wp) {
-                flash_finish();
-                SETREG(BM_STACK_WRSET, (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS);	// change bm_read_limit
-                SETREG(BM_STACK_RESET, 0x01);				// change bm_read_limit
                 g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS;
+                flash_finish();
+                SETREG(BM_STACK_WRSET, g_ftl_write_buf_id);	// change bm_read_limit
+                SETREG(BM_STACK_RESET, 0x01);				// change bm_read_limit
                 return;
             }
             if (zone_state == 0)
             {
                 //Q) max_open_zone reset에서는 안만짐??
                 if (OPEN_ZONE == MAX_OPEN_ZONE) {
-                    flash_finish();
-                    SETREG(BM_STACK_WRSET, (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS);	// change bm_read_limit
-                    SETREG(BM_STACK_RESET, 0x01);				// change bm_read_limit
                     g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS;
+                    flash_finish();
+                    SETREG(BM_STACK_WRSET, g_ftl_write_buf_id);	// change bm_read_limit
+                    SETREG(BM_STACK_RESET, 0x01);				// change bm_read_limit
                     return;
                 }
                 //Q) dequeue에서는 사용할 것이 없ㅇ면 리턴을 어케줌??
@@ -535,6 +535,7 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
             set_zone_wp(c_zone, get_zone_wp(c_zone) + 1);
             if (c_sect == NSECT - 1)
             {
+                //hello
                  #if OPTION_FTL_TEST == 0
                  while (g_ftl_write_buf_id == GETREG(SATA_WBUF_PTR));
                 //while ( ((g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS) == GETREG(SATA_WBUF_PTR));	// wait if the read buffer is full (slow host)
@@ -571,18 +572,18 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
             }
             if (c_sect == NSECT - 1) 
             {
-                flash_finish();
-                SETREG(BM_STACK_WRSET, (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS );	// change bm_read_limit
-                SETREG(BM_STACK_RESET, 0x01);				// change bm_read_limit
                 g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS;
+                flash_finish();
+                SETREG(BM_STACK_WRSET, g_ftl_write_buf_id);	// change bm_read_limit
+                SETREG(BM_STACK_RESET, 0x01);				// change bm_read_limit
             }
         }
 
         else if (zone_state == 2) {
-            flash_finish();
-            SETREG(BM_STACK_WRSET, (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS);	// change bm_read_limit
-            SETREG(BM_STACK_RESET, 0x01);				// change bm_read_limit
             g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS;
+            flash_finish();
+            SETREG(BM_STACK_WRSET, g_ftl_write_buf_id);	// change bm_read_limit
+            SETREG(BM_STACK_RESET, 0x01);				// change bm_read_limit
             return;
         }
 
@@ -630,10 +631,10 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
         i_sect++;
         if (i_sect == num_sectors && c_sect != NSECT - 1) 
         {
-            flash_finish();
-            SETREG(BM_STACK_WRSET, (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS );	// change bm_read_limit
-            SETREG(BM_STACK_RESET, 0x01);				// change bm_read_limit
             g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS;
+            flash_finish();
+            SETREG(BM_STACK_WRSET, g_ftl_write_buf_id);	// change bm_read_limit
+            SETREG(BM_STACK_RESET, 0x01);				// change bm_read_limit
         }
            
     }
