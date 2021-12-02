@@ -159,8 +159,8 @@ static UINT8 get_zone_to_ID(UINT32 zone_number);
 static void set_zone_to_ID(UINT32 zone_number, UINT8 id);
 static void nand_page_ptread_to_host_noplus(UINT32 const bank, UINT32 const vblock, UINT32 const page_num, UINT32 const sect_offset, UINT32 const num_sectors);
 
-/*
-static void zns_izc(UINT32 src_zone, UINT32 dest_zone, UINT32 copy_len, UINT32 *copy_list);
+
+static void zns_izc(UINT32 src_zone, UINT32 dest_zone, UINT32 copy_len, UINT32 izc_addr);
 static UINT8 get_TL_bitmap(UINT32 zone_number, UINT32 page_offset);
 static void set_TL_bitmap(UINT32 zone_number, UINT32 page_offset, UINT8 data);
 static UINT32 get_TL_wp(UINT32 zone_number);
@@ -168,7 +168,7 @@ static void set_TL_wp(UINT32 zone_number, UINT32 wp);
 static UINT32 get_TL_buffer(UINT32 zone_number, UINT32 sector_offset);
 static void set_TL_buffer(UINT32 zone_number,UINT32 sector_offset, UINT32 data);
 static UINT32 get_TL_num(UINT32 zone_number);
-static void set_TL_num(UINT32 zone_number, UINT32 num);*/
+static void set_TL_num(UINT32 zone_number, UINT32 num);
 
 
 static void sanity_check(void)
@@ -579,13 +579,13 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
             {
                 UINT32 vblk = get_zone_to_FBG(c_zone);
             
-            uart_printf("zns_write : Buffer flash\n");
-            for(int i = 0; i < 64; i++)
+            //uart_printf("zns_write : Buffer flash\n");
+            /*for (int i = 0; i < 64; i++)
             {
                   UINT32 data = read_dram_32(ZONE_BUFFER_ADDR + (open_id * BYTES_PER_PAGE) + i*BYTES_PER_SECTOR);
                   uart_printf("%c", data);
-            }
-            uart_printf("\n");
+            }*/
+            //uart_printf("\n");
          
             
                 nand_page_program(c_bank, vblk, p_offset, ZONE_BUFFER_ADDR + (open_id * BYTES_PER_PAGE));
@@ -619,7 +619,7 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
             return;
         }
 
-        else if (zone_state == 3)
+        /*else if (zone_state == 3)
         {
             UINT32 tl_num = p_offset * DEG_ZONE * NSECT + b_offset * NSECT + c_sect;
             UINT32 open_id = get_zone_to_ID(c_zone);
@@ -646,6 +646,8 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
 
             if (c_sect == NSECT - 1)
             {
+                //UINT32 vblk = zone_to_FBG(get_TL_src_to_dest_zone(c_zone));
+
                 nand_page_program(c_bank, vblk, p_offset, ZONE_BUFFER_ADDR + (open_id * BYTES_PER_PAGE));
                 flash_finish();
             }
@@ -669,7 +671,7 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
 
            
 
-        }
+        }*/
 
         i_sect++;
         if (i_sect == num_sectors && c_sect != NSECT - 1) 
@@ -881,7 +883,7 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
             }
         }
 		
-        else if (zone_state == 3)
+        /*else if (zone_state == 3)
         {
             UINT32 i_tl = c_lba - c_zone * DEG_ZONE * NSECT * NPAGE;
             UINT32 TL_WP = get_TL_wp(c_zone);
@@ -936,7 +938,7 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
                     g_ftl_read_buf_id = ((g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS);
                 }
             }
-        }
+        }*/
 
 
 
@@ -1045,7 +1047,7 @@ void zns_get_desc(UINT32 c_zone, UINT32 nzone)
 
 void zns_izc(UINT32 src_zone, UINT32 dest_zone, UINT32 copy_len, UINT32 izc_addr)
 {
-	
+    uart_printf("zns_izc : %d, %d, %d", src_zone, dest_zone, copy_len);
 	ASSERT(src_zone < NZONE && dest_zone < NZONE);
 	if(src_zone == dest_zone) return;
 	if(get_zone_state(src_zone) != 2 || get_zone_state(dest_zone) != 0) return;
@@ -1058,11 +1060,13 @@ void zns_izc(UINT32 src_zone, UINT32 dest_zone, UINT32 copy_len, UINT32 izc_addr
 	UINT32 data[NSECT];
 	for(UINT32 i = 0; i < copy_len; i++)
 	{		
-		UINT32 s_lba = get_zone_slba(src_zone) + read_dram_32(izc_addr + i * sizeof(int)) * NSECT;
+        UINT32 temp = read_dram_32(izc_addr + i * sizeof(int));
+		UINT32 s_lba = get_zone_slba(src_zone) + temp * NSECT;
 		zns_read_internal(s_lba, NSECT, TL_INTERNAL_BUFFER_ADDR);
 		UINT32 d_lba = get_zone_slba(dest_zone) + i * NSECT;
 		zns_write_internal(d_lba, NSECT, TL_INTERNAL_BUFFER_ADDR);
 		set_zone_wp(dest_zone, get_zone_wp(dest_zone) + NSECT);
+        uart_printf("izc addr %d is \n", temp);
 	}
 	zns_reset(get_zone_slba(src_zone));
 	OPEN_ZONE++;
