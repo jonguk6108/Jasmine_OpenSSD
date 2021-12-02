@@ -1097,9 +1097,9 @@ void fill_tl(int zone, int c_lba, int tl_num)
 	UINT32 c_sect = c_lba % NSECT;
 	UINT32 c_bank = (c_lba / NSECT) % DEG_ZONE;
 	UINT32 p_offset = (c_lba / NSECT / DEG_ZONE) % NPAGE;
-	if(tl_num >= DEG_ZONE * NPAGE) return;
+	if(tl_num >= ZONE_SIZE) return;
 	UINT8 open_id = get_zone_to_ID(zone);
-	if(get_TL_bitmap(open_id, tl_num) == 0) return;
+	if(get_TL_bitmap(open_id, tl_num / NSECT) == 0) return;
 	
 	zns_read_internal(c_lba, NSECT, TL_INTERNAL_BUFFER_ADDR);
 	set_TL_wp(zone, get_TL_wp(zone) + NSECT);
@@ -1107,7 +1107,7 @@ void fill_tl(int zone, int c_lba, int tl_num)
 	nand_page_program(c_bank, get_TL_src_to_dest_zone(zone), p_offset, TL_INTERNAL_BUFFER_ADDR);
 	flash_finish();
 	
-	fill_tl(zone, c_lba + ZONE_SIZE, tl_num + 1);
+	fill_tl(zone, c_lba + NSECT, tl_num + NSECT);
 }
 
 
