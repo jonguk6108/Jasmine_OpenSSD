@@ -556,6 +556,16 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
             if (c_sect == NSECT - 1)
             {
                 UINT32 vblk = get_zone_to_FBG(c_zone);
+				
+				uart_printf("zns_write : Buffer flash\n");
+				for(int i = 0; i < 64; i++)
+				{
+						UINT32 data = read_dram_32(ZONE_BUFFER_ADDR + (open_id * BYTES_PER_PAGE) + i*BYTES_PER_SECTOR);
+						uart_printf("%c", data);
+				}
+				uart_printf("\n");
+			
+				
                 nand_page_program(c_bank, vblk, p_offset, ZONE_BUFFER_ADDR + (open_id * BYTES_PER_PAGE));
                 flash_finish();
                 //mem_set_dram(ZONE_BUFFER_ADDR + open_id * BYTES_PER_PAGE, 0xABCDEF23, BYTES_PER_PAGE);
