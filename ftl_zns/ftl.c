@@ -880,7 +880,7 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
                 flash_finish();
                 //uart_pritnf("zns_read : start_lba %d, num_sectors %d - read ", )''
                 mem_set_dram(RD_BUF_PTR(g_ftl_read_buf_id) + c_sect * BYTES_PER_SECTOR,
-                        0xFFFFFF21, 1 * BYTES_PER_SECTOR);
+                        0xFFFFFFFF, 1 * BYTES_PER_SECTOR);
                
                 if (c_sect == NSECT - 1) 
                 {
