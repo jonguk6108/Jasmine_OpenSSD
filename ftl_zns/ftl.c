@@ -617,7 +617,7 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
         {
             UINT32 tl_num = p_offset * DEG_ZONE * NSECT + b_offset * NSECT + c_sect;
             UINT32 open_id = get_zone_to_ID(c_zone);
-            if (get_buffer_sector(open_id, c_sect) == 1) {
+            if (get_TL_bitmap(open_id, b_offset * NPAGE + p_offset) == 1) {
                 g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS;
                 flash_finish();
                 SETREG(BM_STACK_WRSET, g_ftl_write_buf_id);   // change bm_read_limit
