@@ -1047,7 +1047,8 @@ void zns_get_desc(UINT32 c_zone, UINT32 nzone)
 
 void zns_izc(UINT32 src_zone, UINT32 dest_zone, UINT32 copy_len, UINT32 izc_addr)
 {
-    uart_printf("zns_izc : %d, %d, %d", src_zone, dest_zone, copy_len);
+    //mem_copy(IZC_ADDR, (WR_BUF_PTR(g_ftl_write_buf_id) + lba * BYTES_PER_SECTOR + 3 * sizeof(int)), 1024 * sizeof(int));
+    //UINT32 first_data = read_dram_32(WR_BUF_PTR(g_ftl_write_buf_id) + lba * BYTES_PER_SECTOR + 3 * sizeof(int));
 	ASSERT(src_zone < NZONE && dest_zone < NZONE);
 	if(src_zone == dest_zone) return;
     if (get_zone_state(src_zone) != 2 || get_zone_state(dest_zone) != 0) {
@@ -1056,7 +1057,6 @@ void zns_izc(UINT32 src_zone, UINT32 dest_zone, UINT32 copy_len, UINT32 izc_addr
     }
 	if(MAX_OPEN_ZONE == OPEN_ZONE) return;
 	
-    uart_printf("parameter check complete");
 	set_zone_to_FBG(dest_zone, dequeue_FBG());
 	set_zone_to_ID(dest_zone, dequeue_open_id());
 	set_zone_state(dest_zone, 1);	
@@ -1066,15 +1066,10 @@ void zns_izc(UINT32 src_zone, UINT32 dest_zone, UINT32 copy_len, UINT32 izc_addr
 	{		
         UINT32 temp = read_dram_32(izc_addr + i * sizeof(int));
 		UINT32 s_lba = get_zone_slba(src_zone) + temp * NSECT;
-        uart_printf("zns_read_internal start");
 		zns_read_internal(s_lba, NSECT, TL_INTERNAL_BUFFER_ADDR);
-        uart_printf("zns_read_internal finished");
 		UINT32 d_lba = get_zone_slba(dest_zone) + i * NSECT;
-        uart_printf("zns_write_internal start");
 		zns_write_internal(d_lba, NSECT, TL_INTERNAL_BUFFER_ADDR);
-        uart_printf("zns_write_internal finished");
 		set_zone_wp(dest_zone, get_zone_wp(dest_zone) + NSECT);
-        uart_printf("izc addr %d is \n", temp);
 	}
 	zns_reset(get_zone_slba(src_zone));
 	OPEN_ZONE++;
@@ -1261,7 +1256,11 @@ void ftl_write(UINT32 const lba, UINT32 const num_sectors)
         UINT32 copy_len = read_dram_32(WR_BUF_PTR(g_ftl_write_buf_id) + lba * BYTES_PER_SECTOR + 2 * sizeof(int));
         uart_printf("INTERNEL ZONE COMPACTION src zone is %d dst zone is %d copy len is %d\r\n", src_zone, dst_zone, copy_len);
         mem_copy(IZC_ADDR,(WR_BUF_PTR(g_ftl_write_buf_id)+lba*BYTES_PER_SECTOR + 3*sizeof(int)), 1024*sizeof(int));
-        uart_printf("memcopy finished\n");
+        uart_printf("IZC_ADDR is %x", IZC_ADDR);
+        for (int i = 0; i < copy_len; i++) {
+            UINT32 data = read_dram_32(WR_BUF_PTR(g_ftl_write_buf_id) + lba * BYTES_PER_SECTOR + (3+i) * sizeof(int));
+            write_dram_32(IZC_ADDR + i * sizeof(int), data);
+        }
 		zns_izc(src_zone, dst_zone, copy_len, IZC_ADDR);
         g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS;		// Circular buffer
         flash_finish();
