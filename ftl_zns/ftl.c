@@ -822,7 +822,7 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
             }
             continue;
         }
-        else if (zone_state == 1)
+        else if (zone_state == 1 || zone_state == 2)
         {
             if (zone_wp <= c_lba)
             {
@@ -835,8 +835,10 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
                  
                 }
                 //normal
+                flash_finish();
+                //uart_pritnf("zns_read : start_lba %d, num_sectors %d - read ", )''
                 mem_set_dram(RD_BUF_PTR(g_ftl_read_buf_id) + c_sect * BYTES_PER_SECTOR,
-                        0xFFFFFFFF, 1 * BYTES_PER_SECTOR);
+                        0xFFFFFF21, 1 * BYTES_PER_SECTOR);
                
                 if (c_sect == NSECT - 1) 
                 {
@@ -850,6 +852,7 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
                 i_sect++;
                 if (i_sect == num_sectors && c_sect != NSECT - 1)
                 {
+                    flash_finish();
                     SETREG(BM_STACK_RDSET, (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS);	// change bm_read_limit
                     SETREG(BM_STACK_RESET, 0x02);				// change bm_read_limit
                     g_ftl_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
@@ -868,7 +871,7 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
                    while ( ((g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS) == GETREG(SATA_RBUF_PTR));	// wait if the read buffer is full (slow host)
                    #endif
                 }
-
+                flash_finish();
                 mem_copy(RD_BUF_PTR(g_ftl_read_buf_id) + c_sect * BYTES_PER_SECTOR, ZONE_BUFFER_ADDR + open_id * BYTES_PER_PAGE + c_sect * BYTES_PER_SECTOR, BYTES_PER_SECTOR);
                     //uart_printf("read : copy to zone buffer, open_id %d, c_sect %d, addr : %x, rid : %d", open_id, c_sect, ZONE_BUFFER_ADDR + open_id * BYTES_PER_PAGE + c_sect * BYTES_PER_SECTOR, g_ftl_read_buf_id);
                    // UINT32 data = read_dram_32(ZONE_BUFFER_ADDR + open_id * BYTES_PER_PAGE + c_sect * BYTES_PER_SECTOR);
@@ -917,7 +920,7 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
         }
 
         //
-        else if (zone_state == 2)
+        /*else if (zone_state == 2)
         {
             if (zone_wp <= c_lba)
             {
@@ -982,7 +985,7 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
                     g_ftl_read_buf_id = ((g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS);
                 }
             }
-        }
+        }*/
         //
 
         /*
