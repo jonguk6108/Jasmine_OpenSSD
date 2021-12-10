@@ -136,7 +136,7 @@ static UINT32 assign_new_write_vpn(UINT32 const bank);
 static void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const read_buffer_addr);
 static void zns_read_internal(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const read_buffer_addr);
 static void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const write_buffer_addr);
-static void zns_write_interanl(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const write_buffer_addr);
+static void zns_write_internal(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const write_buffer_addr);
 static void zns_init(void);
 static void zns_get_desc(UINT32 c_zone, UINT32 nzone);
 static UINT8 get_zone_state(UINT32 zone_number);
@@ -157,8 +157,6 @@ static void enqueue_open_id(UINT8 open_zone_id);
 static UINT8 dequeue_open_id(void); 
 static UINT8 get_zone_to_ID(UINT32 zone_number);
 static void set_zone_to_ID(UINT32 zone_number, UINT8 id);
-static void nand_page_ptread_to_host_noplus(UINT32 const bank, UINT32 const vblock, UINT32 const page_num, UINT32 const sect_offset, UINT32 const num_sectors);
-
 
 static void zns_izc(UINT32 src_zone, UINT32 dest_zone, UINT32 copy_len, UINT32 izc_addr);
 static UINT8 get_TL_bitmap(UINT32 zone_number, UINT32 page_offset);
@@ -209,7 +207,7 @@ static void sanity_check(void)
         led_blink();
         while (1);
     }
-    uart_printf("no matter\n");
+    
 }
 static void build_bad_blk_list(void)
 {
@@ -436,16 +434,10 @@ void zns_init(void)
 {
 	for(UINT32 i = 0; i < NZONE; i++)
 	{
-		set_zone_state(i, 0);
-       // uart_printf("init1\n");
+		set_zone_state(i, 0);    
 		set_zone_slba(i, i * ZONE_SIZE);
-       // uart_printf("init2\n");
 		set_zone_wp(i, i * ZONE_SIZE);
-       // uart_printf("init3\n");
-		
 		set_zone_to_FBG(i, -1);
-
-       // uart_printf("%d\n",i);
 	}
 	
 	
@@ -454,7 +446,6 @@ void zns_init(void)
 		enqueue_open_id(i);
 		for(UINT32 j = 0; j < NSECT; j++)
 		{
-        //    uart_printf("%d %d\n", i,j);
 			set_buffer_sector(i, j, -1);
 		}
 	}
@@ -465,11 +456,6 @@ void zns_init(void)
 		{
 			set_TL_bitmap(i, j, 0);
 		}
-		for(UINT32 j = 0; j < NSECT; j++)
-		{
-			//set_TL_buffer(i, j,-1);
-		}
-		//set_TL_num(i, -1);
 		set_TL_wp(i, 0);
 	}
 	
@@ -508,10 +494,8 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
 
         if (c_sect == 0 || i_sect == 0)
         {
-            //hello
             #if OPTION_FTL_TEST == 0
             while (g_ftl_write_buf_id == GETREG(SATA_WBUF_PTR));
-            //while ( ((g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS) == GETREG(SATA_WBUF_PTR));   // wait if the read buffer is full (slow host)
             #endif
         }
 
@@ -526,7 +510,6 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
             }
             if (zone_state == 0)
             {
-                //Q) max_open_zone reset에서는 안만짐??
                 if (OPEN_ZONE == MAX_OPEN_ZONE) {
                     g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS;
                     flash_finish();
@@ -534,10 +517,6 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
                     SETREG(BM_STACK_RESET, 0x01);            // change bm_read_limit
                     return;
                 }
-                //Q) dequeue에서는 사용할 것이 없ㅇ면 리턴을 어케줌??
-                //if(FB[c_fcg][NBLK] == 0) return -1; 
-
-                uart_printf("open zone");
                 UINT32 dequeue_fbg = dequeue_FBG();
                 UINT32 open_id = dequeue_open_id();
                 set_zone_to_FBG(c_zone, dequeue_fbg);
@@ -547,45 +526,17 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
             }
 
             set_zone_wp(c_zone, get_zone_wp(c_zone) + 1);
-            /*
-            if (c_sect == NSECT - 1)
-            {
-                //hello
-                 #if OPTION_FTL_TEST == 0
-                 while (g_ftl_write_buf_id == GETREG(SATA_WBUF_PTR));
-                //while ( ((g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS) == GETREG(SATA_WBUF_PTR));   // wait if the read buffer is full (slow host)
-                 #endif
-            }
-            */
-
             UINT8 open_id = get_zone_to_ID(c_zone);
 
             UINT32 data;
             mem_copy(ZONE_BUFFER_ADDR + open_id * BYTES_PER_PAGE + c_sect * BYTES_PER_SECTOR
                 ,WR_BUF_PTR(g_ftl_write_buf_id) + c_sect * BYTES_PER_SECTOR, BYTES_PER_SECTOR);
-            //uart_printf("write : copy to zone buffer, open_id %d, c_sect %d, addr : %x", open_id, c_sect, ZONE_BUFFER_ADDR + open_id * BYTES_PER_PAGE + c_sect * BYTES_PER_SECTOR);
-            //data = read_dram_32(ZONE_BUFFER_ADDR + open_id * BYTES_PER_PAGE + c_sect * BYTES_PER_SECTOR);
-            //uart_printf("%c", data);
-                //mem_set_dram(data, WR_BUF_PTR(g_ftl_write_buf_id) + c_sect * BYTES_PER_SECTOR, 1 * BYTES_PER_SECTOR);
 
-            //set_buffer_sector(open_id, c_sect, data);
             if (c_sect == NSECT - 1)
             {
                 UINT32 vblk = get_zone_to_FBG(c_zone);
-            
-            //uart_printf("zns_write : Buffer flash\n");
-            /*for (int i = 0; i < 64; i++)
-            {
-                  UINT32 data = read_dram_32(ZONE_BUFFER_ADDR + (open_id * BYTES_PER_PAGE) + i*BYTES_PER_SECTOR);
-                  uart_printf("%c", data);
-            }*/
-            //uart_printf("\n");
-         
-            
                 nand_page_program(c_bank, vblk, p_offset, ZONE_BUFFER_ADDR + (open_id * BYTES_PER_PAGE));
                 flash_finish();
-                //mem_set_dram(ZONE_BUFFER_ADDR + open_id * BYTES_PER_PAGE, 0xABCDEF23, BYTES_PER_PAGE);
-                //uart_printf("nand page program issued, i_sect %d\n", i_sect);
             }
             if (get_zone_wp(c_zone) == get_zone_slba(c_zone) + ZONE_SIZE)
             {
@@ -634,7 +585,6 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
             }
             set_TL_wp(c_zone, TL_WP + 1);
 
-            //UINT32 data;
             mem_copy(ZONE_BUFFER_ADDR + open_id * BYTES_PER_PAGE + c_sect * BYTES_PER_SECTOR
                 , WR_BUF_PTR(g_ftl_write_buf_id) + c_sect * BYTES_PER_SECTOR, BYTES_PER_SECTOR);
 
@@ -751,13 +701,6 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
 
         if (zone_state == 0)
         {
-            /*if (c_sect == NSECT - 1)
-            {
-                #if OPTION_FTL_TEST == 0
-                while ( ((g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS) == GETREG(SATA_RBUF_PTR));   // wait if the read buffer is full (slow host)
-                #endif
-            }*/
-            //normal
                 mem_set_dram(RD_BUF_PTR(g_ftl_read_buf_id) + c_sect * BYTES_PER_SECTOR,
                     0xFFFFFFFF, 1 * BYTES_PER_SECTOR);
 
@@ -784,17 +727,7 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
         {
             if (zone_wp <= c_lba)
             {
-                /*if (c_sect == NSECT - 1)
-                {
-                    //g_ftl_read_buf_id = 이제 쓸 곳
-                   #if OPTION_FTL_TEST == 0
-                   while ( ((g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS) == GETREG(SATA_RBUF_PTR));   // wait if the read buffer is full (slow host)
-                   #endif
-                 
-                }*/
-                //normal
                 flash_finish();
-                //uart_pritnf("zns_read : start_lba %d, num_sectors %d - read ", )''
                 mem_set_dram(RD_BUF_PTR(g_ftl_read_buf_id) + c_sect * BYTES_PER_SECTOR,
                         0xFFFFFFFF, 1 * BYTES_PER_SECTOR);
                
@@ -823,46 +756,21 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
             {
                 UINT8 open_id = get_zone_to_ID(c_zone);
                 UINT32 data = get_buffer_sector(open_id, c_sect);
-                /*if (c_sect == NSECT - 1)
-                {
-                   #if OPTION_FTL_TEST == 0
-                   while ( ((g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS) == GETREG(SATA_RBUF_PTR));   // wait if the read buffer is full (slow host)
-                   #endif
-                }*/
                 flash_finish();
                 mem_copy(RD_BUF_PTR(g_ftl_read_buf_id) + c_sect * BYTES_PER_SECTOR, ZONE_BUFFER_ADDR + open_id * BYTES_PER_PAGE + c_sect * BYTES_PER_SECTOR, BYTES_PER_SECTOR);
-                    //uart_printf("read : copy to zone buffer, open_id %d, c_sect %d, addr : %x, rid : %d", open_id, c_sect, ZONE_BUFFER_ADDR + open_id * BYTES_PER_PAGE + c_sect * BYTES_PER_SECTOR, g_ftl_read_buf_id);
-                   // UINT32 data = read_dram_32(ZONE_BUFFER_ADDR + open_id * BYTES_PER_PAGE + c_sect * BYTES_PER_SECTOR);
                     UINT32 data2 = read_dram_32(RD_BUF_PTR(g_ftl_read_buf_id) + c_sect * BYTES_PER_SECTOR);
-                    //mem_set_dram(RD_BUF_PTR(g_ftl_read_buf_id) + c_sect * BYTES_PER_SECTOR,data, 1 * BYTES_PER_SECTOR);
 
                 if (c_sect == NSECT - 1)
                 {
-                    //uart_printf("BM");
                     flash_finish();
                     SETREG(BM_STACK_RDSET, (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS );   // change bm_read_limit
                     SETREG(BM_STACK_RESET, 0x02);            // change bm_read_limit
                     g_ftl_read_buf_id = ((g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS) ;
                 }
             }
-            //데이터가 버퍼에 없을때 즉, nand에서 읽어와야댐 문제점: nand_page_pthread는 sect단위가아니고 page단위로 하는 듯.
             else
             {
-                UINT32 vblk = get_zone_to_FBG(c_zone);
-
-                //1) next_id를 증가시키고, 전체를 계속해서 리드호스트버퍼에 덮어씌우며 c_sect == NSECT -1 일 될 경우에 read_id를 갱신시켜준다.
-                // 
-                // swch != 0일 경우에도 호환성이 높음.
-                // tmp이 시급하다.
-                //2) 만약에 호스트 리드일 경우에, c_sect가 NSECT -1 보다 작거나 같으면, 한 번 실행에서 리드버퍼에 전부다 덮어씌워질 것이며
-                //      현재보는 i_sect를 다음 sect_offset이 0이 되게 만들어준다.
-  
-               /*if (c_sect == NSECT - 1)
-               {
-                        #if OPTION_FTL_TEST == 0
-                        while ( ((g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS) == GETREG(SATA_RBUF_PTR));   // wait if the read buffer is full (slow host)
-                        #endif
-               }*/
+               UINT32 vblk = get_zone_to_FBG(c_zone);
                nand_page_read(c_bank, vblk, p_offset, RD_BUF_PTR(g_ftl_read_buf_id));
                flash_finish();
 
@@ -879,20 +787,13 @@ void zns_read(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const rea
 		
         else if (zone_state == 3)
         {
-            uart_printf("zns_read : lba %d, num_sectors %d issued", start_lba, num_sectors);
             UINT32 i_tl = c_lba - c_zone * DEG_ZONE * NSECT * NPAGE;
             UINT32 TL_WP = get_TL_wp(c_zone);
             if (TL_WP > i_tl)
             { // this data in tl zone
                 if (((TL_WP - 1) / NSECT) * NSECT <= i_tl && ((TL_WP - 1) % NSECT) != NSECT - 1)
                 {
-                    uart_printf("TL read from buffer TL_WP : %d, i_tl : %d, \n", TL_WP, i_tl);
                     UINT8 open_id = get_zone_to_ID(c_zone);
-                    //UINT32 data = get_buffer_sector(open_id, c_sect);
-
-                    //mem_set_dram(RD_BUF_PTR(read_buffer_addr) + c_sect * BYTES_PER_SECTOR,
-                    //    data, 1 * BYTES_PER_SECTOR);
-                    //밑에 꺼도 가능
                     mem_copy(RD_BUF_PTR(g_ftl_read_buf_id) + c_sect * BYTES_PER_SECTOR, ZONE_BUFFER_ADDR + open_id * BYTES_PER_PAGE + c_sect * BYTES_PER_SECTOR, BYTES_PER_SECTOR);
 
                     if (c_sect == NSECT - 1)
@@ -1030,8 +931,6 @@ void zns_get_desc(UINT32 c_zone, UINT32 nzone)
 
 void zns_izc(UINT32 src_zone, UINT32 dest_zone, UINT32 copy_len, UINT32 izc_addr)
 {
-    //mem_copy(IZC_ADDR, (WR_BUF_PTR(g_ftl_write_buf_id) + lba * BYTES_PER_SECTOR + 3 * sizeof(int)), 1024 * sizeof(int));
-    //UINT32 first_data = read_dram_32(WR_BUF_PTR(g_ftl_write_buf_id) + lba * BYTES_PER_SECTOR + 3 * sizeof(int));
 	ASSERT(src_zone < NZONE && dest_zone < NZONE);
 	if(src_zone == dest_zone) return;
     if (get_zone_state(src_zone) != 2 || get_zone_state(dest_zone) != 0) {
@@ -1044,7 +943,6 @@ void zns_izc(UINT32 src_zone, UINT32 dest_zone, UINT32 copy_len, UINT32 izc_addr
 	set_zone_to_ID(dest_zone, dequeue_open_id());
 	set_zone_state(dest_zone, 1);	
 	
-	UINT32 data[NSECT];
 	for(UINT32 i = 0; i < copy_len; i++)
 	{		
         UINT32 temp = read_dram_32(izc_addr + i * sizeof(int));
@@ -1118,7 +1016,6 @@ void ftl_read(UINT32 const lba, UINT32 const num_sectors)
     remain_sects = num_sectors;
     bank = get_num_bank(lpn);
 
-    //uart_printf("ftl_read : lba %d, num_sectors %d issued\n", lba, num_sectors);
 
 	if(lba == 7 && num_sectors == 7){
 		UINT32 next_read_buf_id = (g_ftl_read_buf_id+1) % NUM_RD_BUFFERS;
@@ -1211,8 +1108,6 @@ void ftl_write(UINT32 const lba, UINT32 const num_sectors)
     lpn          = lba / SECTORS_PER_PAGE;
     sect_offset  = lba % SECTORS_PER_PAGE;
     remain_sects = num_sectors;
-
-    //uart_printf("ftl_write: lba %d, num_sectors %d issued\n", lba, num_sectors);
 
 	g_ftl_statistics[get_num_bank(lpn)].host_write++;
 
