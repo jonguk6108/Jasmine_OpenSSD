@@ -545,7 +545,6 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
                 enqueue_open_id(open_id);
                 mem_set_dram(ZONE_BUFFER_ADDR + open_id * BYTES_PER_PAGE, 0xABCDEF23, BYTES_PER_PAGE);
                 OPEN_ZONE -= 1;
-                uart_printf("close zone");
             }
             if (c_sect == NSECT - 1) 
             {
@@ -2073,13 +2072,10 @@ UINT32 get_buffer_sector(UINT32 zone_number, UINT32 sector_offset)
 }
 void set_buffer_sector(UINT32 zone_number, UINT32 sector_offset, UINT32 data)
 {
-    //uart_printf("her1\n");
 	ASSERT(zone_number < NBLK);
-   // uart_printf("here2\n");
 	ASSERT(sector_offset < SECTORS_PER_PAGE);
-   // uart_printf("here3\n");
 	write_dram_32(ZONE_BUFFER_ADDR + (zone_number * SECTORS_PER_PAGE + sector_offset) * sizeof(UINT32), data);
-  //  uart_printf("here4\n");
+
 }
 
 UINT32 get_zone_to_FBG(UINT32 zone_number)
