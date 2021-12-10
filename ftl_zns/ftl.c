@@ -990,7 +990,12 @@ void zns_reset(UINT32 c_zone)
 	
 	set_zone_state(c_zone, 0);
 	set_zone_wp(c_zone, get_zone_slba(c_zone));
-	nand_block_erase(c_bank, get_zone_to_FBG(c_zone));
+	
+	UINT32 i;
+	for(i = 0; i< NUM_BANKS; i++)
+	{
+		nand_block_erase(i, get_zone_to_FBG(c_zone));
+	}
 	
 	enqueue_FBG(get_zone_to_FBG(c_zone));
 	set_zone_to_FBG(c_zone, -1);
@@ -1004,32 +1009,21 @@ void zns_get_desc(UINT32 c_zone, UINT32 nzone)
 		ASSERT(i + c_zone < NZONE);
 
 		uart_printf("ZONE %d descriptor", c_zone + i);
-        /*
+        
         if(get_zone_state(i + c_zone) == 3)
         {
             uart_printf("State : TL_OPEN");
             uart_printf("Slba : %d", get_zone_slba(i + c_zone));
             uart_printf("Wp : %d", get_TL_wp(i + c_zone) + get_zone_slba(i + c_zone));
-
-            //descs[i].state = 3;
-            //descs[i].slba = get_zone_slba(i + c_zone);
-            //descs[i].wp = get_TL_wp(i + c_zone) + get_zone_slba(i + c_zone);
             continue;
         }
-        */
-
-		//descs[i].state = get_zone_state(i + c_zone);
-		//descs[i].slba = get_zone_slba(i + c_zone);
-		//descs[i].wp = get_zone_wp(i + c_zone);
+    
         if(get_zone_state(i + c_zone) == 0) uart_printf("State : EMPTY");
 		else if(get_zone_state(i + c_zone) == 1) uart_printf("State : OPEN");
 		else if(get_zone_state(i + c_zone) == 2) uart_printf("State : FULL");
 		
 		uart_printf("Slba : %d", get_zone_slba(i + c_zone));
 		uart_printf("Wp : %d", get_zone_wp(i + c_zone));
-		
-		
-        //todo : uart_print desc
 	}
   return;
 }
@@ -1230,7 +1224,7 @@ void ftl_write(UINT32 const lba, UINT32 const num_sectors)
         flash_finish();
         SETREG(BM_STACK_WRSET, g_ftl_write_buf_id);	// change bm_write_limit
         SETREG(BM_STACK_RESET, 0x01);				// change bm_write_limit
-
+		zns_reset(zone);
         //call zns_reset
         return;
     }
