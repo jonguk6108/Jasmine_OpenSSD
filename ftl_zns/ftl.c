@@ -984,14 +984,24 @@ void zns_tl_open(UINT32 zone, UINT32 tl_addr)
 	set_zone_state(zone, 3);
 	OPEN_ZONE++;
 	
+	UINT8 flag = 0;
+	
 	for(UINT32 i = 0; i < DEG_ZONE * NPAGE; i++)
 	{
 		UINT8 data = read_dram_8(tl_addr + i * sizeof(UINT8));
 		set_TL_bitmap(open_id, i, data);
+		if(data == 0) flag = 1;
 	}
 	set_TL_wp(zone, 0);
 	
 	fill_tl(zone, zone*ZONE_SIZE, 0);
+	if(flag == 0)
+	{
+		zns_reset(zone);
+        set_zone_state(zone, 2);
+        set_zone_to_FBG(zone, get_TL_src_to_dest_zone(zone));
+        OPEN_ZONE -= 1;
+	}
 }
 
 void fill_tl(int zone, int c_lba, int tl_num)
