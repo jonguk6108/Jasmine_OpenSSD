@@ -565,14 +565,24 @@ void zns_write(UINT32 const start_lba, UINT32 const num_sectors, UINT32 const wr
 
         else if (zone_state == 3)
         {
+
             UINT32 tl_num = p_offset * DEG_ZONE * NSECT + b_offset * NSECT + c_sect;
             UINT32 open_id = get_zone_to_ID(c_zone);
-            if (get_TL_bitmap(open_id, b_offset * NPAGE + p_offset) == 1) {
-                g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS;
-                flash_finish();
-                SETREG(BM_STACK_WRSET, g_ftl_write_buf_id);   // change bm_read_limit
-                SETREG(BM_STACK_RESET, 0x01);            // change bm_read_limit
-                return;
+
+            int end_lba = start_lba + num_sectors - 1;
+            int start_page = (start_lba - get_zone_slba(c_zone))/SECTORS_PER_PAGE;
+            int end_page = (end_lba - get_zone_slba(c_zone)) / SECTORS_PER_PAGE;
+            for (int i = start_page; i <= end_page; i++) {
+                if (get_TL_bitmap(open_id,i) == 1) {
+                    for (int j = start_page; j <= end_page; j++) {
+                        while (g_ftl_write_buf_id == GETREG(SATA_WBUF_PTR));
+                        g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS;
+                        flash_finish();
+                        SETREG(BM_STACK_WRSET, g_ftl_write_buf_id);   // change bm_read_limit
+                        SETREG(BM_STACK_RESET, 0x01);            // change bm_read_limit
+                    }
+                    return;
+                }
             }
             UINT32 TL_WP = get_TL_wp(c_zone);
             if (TL_WP != tl_num) {
@@ -952,7 +962,7 @@ void zns_izc(UINT32 src_zone, UINT32 dest_zone, UINT32 copy_len, UINT32 izc_addr
 		set_zone_wp(dest_zone, get_zone_wp(dest_zone) + NSECT);
 	}
 	
-	zns_reset(get_zone_slba(src_zone));
+	zns_reset(src_zone);
 	OPEN_ZONE++;
 	
 	if(copy_len == DEG_ZONE * NPAGE)
@@ -1584,7 +1594,7 @@ static void init_metadata_sram(void)
     //----------------------------------------
     for (bank = 0; bank < NUM_BANKS; bank++)
     {
-        g_misc_meta[bank].free_blk_cnt = 7;
+        g_misc_meta[bank].free_blk_cnt = 8;
         
         //g_misc_meta[bank].free_blk_cnt = rand_write_blks - META_BLKS_PER_BANK;
         //g_misc_meta[bank].free_blk_cnt -= get_bad_blk_cnt(bank);
